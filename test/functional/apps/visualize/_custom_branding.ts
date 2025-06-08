@@ -25,7 +25,7 @@ export default function ({ getService, getPageObjects }: FtrProviderContext) {
   const expectedMarkLogoDarkMode =
     'https://opensearch.org/wp-content/uploads/2025/01/opensearch_mark_darkmode.svg';
   const applicationTitle = 'OpenSearch';
-  const expectedWelcomeMessage = 'Welcome to OpenSearch';
+  const expectedWelcomeMessage = 'Welcome to OpenSearch Dashboards';
 
   describe('OpenSearch Dashboards branding configuration', function customHomeBranding() {
     describe('should render overview page', async () => {

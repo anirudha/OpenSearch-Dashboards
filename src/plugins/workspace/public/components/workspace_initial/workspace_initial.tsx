@@ -150,7 +150,7 @@ export const WorkspaceInitial = ({ registeredUseCases$ }: WorkspaceInitialProps)
         <EuiTitle size="l">
           <h1>
             {i18n.translate('workspace.initial.title', {
-              defaultMessage: 'Welcome to OpenSearch',
+              defaultMessage: 'Welcome to OpenSearch Dashboards',
             })}
           </h1>
         </EuiTitle>

@@ -35,7 +35,7 @@ exports[`WorkspaceInitial render workspace initial page normally when user is OS
               <h1
                 class="euiTitle euiTitle--large"
               >
-                Welcome to OpenSearch
+                Welcome to OpenSearch Dashboards
               </h1>
             </div>
             <div
@@ -760,7 +760,7 @@ exports[`WorkspaceInitial render workspace initial page normally when user is no
               <h1
                 class="euiTitle euiTitle--large"
               >
-                Welcome to OpenSearch
+                Welcome to OpenSearch Dashboards
               </h1>
             </div>
             <div
