@@ -87,7 +87,7 @@ export class AggTypesRegistry {
   };
 
   start = ({ uiSettings }: AggTypesRegistryStartDependencies) => {
-    const disabledBucketAgg = uiSettings.get('visualize:disableBucketAgg');
+    const disabledBucketAgg = uiSettings.get('visualize:disableBucketAgg', []);
 
     if (disabledBucketAgg !== undefined && Array.isArray(disabledBucketAgg)) {
       for (const k of this.bucketAggs.keys()) {

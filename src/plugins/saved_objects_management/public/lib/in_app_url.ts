@@ -39,9 +39,9 @@ export function canViewInApp(uiCapabilities: Capabilities, type: string): boolea
       return uiCapabilities.explore?.show as boolean;
     case 'visualization':
     case 'visualizations':
-      return uiCapabilities.visualize?.show as boolean;
+      return false;
     case 'augment-vis':
-      return uiCapabilities.visAugmenter?.show as boolean;
+      return false;
     case 'index-pattern':
     case 'index-patterns':
     case 'indexPatterns':

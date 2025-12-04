@@ -282,20 +282,6 @@ export const buildPipelineVisFunction: BuildPipelineVisFunction = {
     const paramsArray = [paramsJson, uiStateJson].filter((param) => Boolean(param));
     return `tsvb ${paramsArray.join(' ')}`;
   },
-  region_map: (params, schemas) => {
-    const visConfig = {
-      ...params,
-      ...buildVisConfig.region_map(schemas),
-    };
-    return `regionmap ${prepareJson('visConfig', visConfig)}`;
-  },
-  tile_map: (params, schemas) => {
-    const visConfig = {
-      ...params,
-      ...buildVisConfig.tile_map(schemas),
-    };
-    return `tilemap ${prepareJson('visConfig', visConfig)}`;
-  },
   pie: (params, schemas) => {
     const visConfig = {
       ...params,
@@ -306,23 +292,6 @@ export const buildPipelineVisFunction: BuildPipelineVisFunction = {
 };
 
 const buildVisConfig: BuildVisConfigFunction = {
-  region_map: (schemas) => {
-    const visConfig = {} as any;
-    visConfig.metric = schemas.metric[0];
-    if (schemas.segment) {
-      visConfig.bucket = schemas.segment[0];
-    }
-    return visConfig;
-  },
-  tile_map: (schemas) => {
-    const visConfig = {} as any;
-    visConfig.dimensions = {
-      metric: schemas.metric[0],
-      geohash: schemas.segment ? schemas.segment[0] : null,
-      geocentroid: schemas.geo_centroid ? schemas.geo_centroid[0] : null,
-    };
-    return visConfig;
-  },
   pie: (schemas) => {
     const visConfig = {} as any;
     visConfig.dimensions = {

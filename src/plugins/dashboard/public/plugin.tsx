@@ -434,7 +434,7 @@ export class DashboardPlugin
           // @ts-expect-error TS2322 TODO(ts-error): fixme
           dashboardCapabilities: coreStart.application.capabilities.dashboard,
           embeddableCapabilities: {
-            visualizeCapabilities: coreStart.application.capabilities.visualize,
+            visualizeCapabilities: {},
             mapsCapabilities: coreStart.application.capabilities.maps,
           },
           localStorage: new Storage(localStorage),

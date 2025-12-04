@@ -128,34 +128,6 @@ describe('visualize loader pipeline helpers: build pipeline', () => {
       expect(actual).toMatchSnapshot();
     });
 
-    describe('handles region_map function', () => {
-      it('without buckets', () => {
-        const params = { metric: {} };
-        const actual = buildPipelineVisFunction.region_map(params, schemasDef, uiState);
-        expect(actual).toMatchSnapshot();
-      });
-
-      it('with buckets', () => {
-        const schemas = {
-          ...schemasDef,
-          segment: [1, 2],
-        };
-        const actual = buildPipelineVisFunction.region_map({}, schemas, uiState);
-        expect(actual).toMatchSnapshot();
-      });
-    });
-
-    it('handles tile_map function', () => {
-      const params = { metric: {} };
-      const schemas = {
-        ...schemasDef,
-        segment: [1, 2],
-        geo_centroid: [3, 4],
-      };
-      const actual = buildPipelineVisFunction.tile_map(params, schemas, uiState);
-      expect(actual).toMatchSnapshot();
-    });
-
     it('handles pie function', () => {
       const schemas = {
         ...schemasDef,
