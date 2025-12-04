@@ -259,8 +259,7 @@ const shouldShowUnauthorizedEmptyState = (
     !getShouldShowEditHelp(appStateData, dashboardConfig) &&
     !getShouldShowViewHelp(appStateData, dashboardConfig) &&
     dashboardConfig.getHideWriteControls();
-  const userHasNoPermissions =
-    !appStateData.panels.length && !mapsCapabilities.save;
+  const userHasNoPermissions = !appStateData.panels.length && !mapsCapabilities.save;
   return readonlyMode || userHasNoPermissions;
 };
 
