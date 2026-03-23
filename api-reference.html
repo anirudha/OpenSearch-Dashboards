@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Api Reference - Dashboards-as-Code</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 980px; margin: 0 auto; padding: 40px 20px; color: #1f2328; line-height: 1.6; background: #fff; }
+h1 { font-size: 2em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; margin-top: 1.5em; }
+h3 { font-size: 1.25em; margin-top: 1.5em; }
+code { background: #eff1f3; padding: 0.2em 0.4em; border-radius: 6px; font-size: 85%; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace; }
+pre { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; overflow-x: auto; }
+pre code { background: none; padding: 0; font-size: 85%; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+th, td { border: 1px solid #d1d9e0; padding: 6px 13px; text-align: left; }
+th { background: #f6f8fa; font-weight: 600; }
+tr:nth-child(2n) { background: #f6f8fa; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+blockquote { border-left: 4px solid #d1d9e0; color: #656d76; margin: 16px 0; padding: 0 16px; }
+hr { border: none; border-top: 1px solid #d1d9e0; margin: 24px 0; }
+nav { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; margin-bottom: 32px; }
+nav a { display: inline-block; margin: 4px 12px 4px 0; }
+.nav-current { font-weight: 700; color: #1f2328; }
+ul, ol { padding-left: 2em; }
+li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<nav><a href="/">Overview</a> | <a href="/getting-started">Getting Started</a> | <a href="/sdk-reference">SDK Reference</a> | <a href="/cli-reference">CLI Reference</a> | <a href="/api-reference" class="nav-current">API Reference</a> | <a href="/ci-cd-guide">CI/CD Guide</a> | <a href="/migration-guide">Migration Guide</a> | <a href="/cookbook">Cookbook</a></nav>
+<h1>API Reference: Saved Objects API Extensions</h1>
+
+<p>The Dashboards-as-Code feature extends the existing OpenSearch Dashboards Saved Objects API with validation, diff, bulk apply, clean export, and schema endpoints. All existing Saved Objects API endpoints continue to work unchanged.</p>
+
+<p><strong>Base URL:</strong> <code>https://&lt;dashboards-host&gt;:&lt;port&gt;/api/saved_objects</code></p>
+
+<h2>Authentication</h2>
+
+<p>All API endpoints respect the existing OpenSearch Dashboards security configuration. Supported authentication methods:</p>
+
+<h3>Basic Auth</h3>
+
+<pre><code class="language-bash">
+curl -u admin:password \
+  -X POST https://localhost:5601/api/saved_objects/_validate \
+  -H 'Content-Type: application/json' \
+  -H 'osd-xsrf: true' \
+  -d '{ ... }'
+</code></pre>
+
+<h3>Bearer Token</h3>
+
+<pre><code class="language-bash">
+curl -H "Authorization: Bearer &lt;token&gt;" \
+  -X POST https://localhost:5601/api/saved_objects/_validate \
+  -H 'Content-Type: application/json' \
+  -H 'osd-xsrf: true' \
+  -d '{ ... }'
+</code></pre>
+
+<h3>SAML / OIDC</h3>
+
+<p>Token-based authentication obtained through your identity provider. Use the bearer token method with the token retrieved from your SAML/OIDC flow.</p>
+
+<blockquote><p>Note: All <code>POST</code> requests require the <code>osd-xsrf: true</code> header to prevent cross-site request forgery.</p></blockquote>
+
+<hr>
+
+<h2>POST /api/saved_objects/_validate</h2>
+
+<p>Validate a resource definition against the <code>SavedObjectSchemaRegistry</code> without persisting it. The registry provides typed schemas for each saved object type, ensuring validation is consistent with the server's registered schema definitions.</p>
+
+<h3>Request</h3>
+
+<pre><code class="language-http">
+POST /api/saved_objects/_validate?mode=schema
+Content-Type: application/json
+osd-xsrf: true
+
+{
+  "type": "dashboard",
+  "attributes": {
+    "title": "CPU Monitoring",
+    "description": "Production CPU metrics",
+    "panelsJSON": [
+      {
+        "panelIndex": "1",
+        "gridData": { "x": 0, "y": 0, "w": 24, "h": 12, "i": "1" },
+        "type": "visualization",
+        "id": "cpu-line-chart"
+      }
+    ],
+    "optionsJSON": {
+      "useMargins": true,
+      "hidePanelTitles": false
+    },
+    "timeRestore": true,
+    "timeFrom": "now-1h",
+    "timeTo": "now"
+  },
+  "references": [
+    {
+      "id": "cpu-line-chart",
+      "name": "panel_0",
+      "type": "visualization"
+    }
+  ]
+}
+</code></pre>
+
+<h3>Query Parameters</h3>
+
+<table>
+<tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>mode</code></td><td><code>schema</code></td><td>Validation mode: <code>schema</code> (JSON Schema only, fast, offline-capable) or <code>full</code> (schema + server-side checks for data sources, index patterns, plugins). In <code>full</code> mode, the <code>references</code> array is also validated to ensure all referenced objects exist.</td></tr>
+</table>
+
+<h3>Response: Success</h3>
+
+<pre><code class="language-http">
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "valid": true,
+  "warnings": []
+}
+</code></pre>
+
+<h3>Response: Validation Error</h3>
+
+<pre><code class="language-http">
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "valid": false,
+  "errors": [
+    {
+      "path": "attributes.panelsJSON[2].gridData.w",
+      "message": "must be &gt;= 1",
+      "schemaPath": "#/$defs/panel/properties/gridData/properties/w/minimum"
+    },
+    {
+      "path": "attributes.title",
+      "message": "must be string with minLength 1",
+      "schemaPath": "#/properties/title/minLength"
+    }
+  ]
+}
+</code></pre>
+
+<h3>Error Response Fields</h3>
+
+<table>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+<tr><td><code>path</code></td><td>string</td><td>JSON Pointer to the field that failed validation</td></tr>
+<tr><td><code>message</code></td><td>string</td><td>Human-readable error description</td></tr>
+<tr><td><code>schemaPath</code></td><td>string</td><td>JSON Schema path of the constraint that was violated</td></tr>
+</table>
+
+<h3>Examples</h3>
+
+<p><strong>Schema-only validation (fast, no server state required):</strong></p>
+
+<pre><code class="language-bash">
+curl -u admin:admin \
+  -X POST "http://localhost:5601/api/saved_objects/_validate?mode=schema" \
+  -H 'Content-Type: application/json' \
+  -H 'osd-xsrf: true' \
+  -d '{
+    "type": "dashboard",
+    "attributes": {
+      "title": "My Dashboard",
+      "panelsJSON": []
+    }
+  }'
+</code></pre>
+
+<p><strong>Full validation (checks data sources and plugins):</strong></p>
+
+<pre><code class="language-bash">
+curl -u admin:admin \
+  -X POST "http://localhost:5601/api/saved_objects/_validate?mode=full" \
+  -H 'Content-Type: application/json' \
+  -H 'osd-xsrf: true' \
+  -d '{
+    "type": "dashboard",
+    "attributes": {
+      "title": "My Dashboard",
+      "panelsJSON": [
+        {
+          "panelIndex": "1",
+          "gridData": { "x": 0, "y": 0, "w": 24, "h": 12, "i": "1" },
+          "type": "visualization",
+          "id": "some-viz-id"
+        }
+      ]
+    },
+    "references": [
+      {
+        "id": "some-viz-id",
+        "name": "panel_0",
+        "type": "visualization"
+      }
+    ]
+  }'
+</code></pre>
+
+<hr>
+
+<h2>POST /api/saved_objects/_diff</h2>
+
+<p>Compare a resource definition against the currently deployed version and return a structured diff.</p>
+
+<h3>Request</h3>
+
+<pre><code class="language-http">
+POST /api/saved_objects/_diff
+Content-Type: application/json
+osd-xsrf: true
+
+{
+  "type": "dashboard",
+  "id": "cpu-monitoring",
+  "attributes": {
+    "title": "CPU Monitoring (Updated)",
+    "description": "Production CPU metrics across all clusters",
+    "panelsJSON": [
+      {
+        "panelIndex": "1",
+        "gridData": { "x": 0, "y": 0, "w": 24, "h": 12, "i": "1" },
+        "type": "visualization",
+        "id": "cpu-line-chart"
+      },
+      {
+        "panelIndex": "2",
+        "gridData": { "x": 0, "y": 12, "w": 24, "h": 12, "i": "2" },
+        "type": "visualization",
+        "id": "cpu-heatmap"
+      }
+    ]
+  }
+}
+</code></pre>
+
+<h3>Response: Changes Detected</h3>
+
+<pre><code class="language-http">
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "status": "updated",
+  "diff": [
+    {
+      "op": "replace",
+      "path": "/attributes/title",
+      "oldValue": "CPU Monitoring",
+      "newValue": "CPU Monitoring (Updated)"
+    },
+    {
+      "op": "add",
+      "path": "/attributes/panelsJSON/1",
+      "newValue": {
+        "panelIndex": "2",
+        "gridData": { "x": 0, "y": 12, "w": 24, "h": 12, "i": "2" },
+        "type": "visualization",
+        "id": "cpu-heatmap"
+      }
+    }
+  ]
+}
+</code></pre>
+
+<h3>Response: New Object</h3>
+
+<pre><code class="language-http">
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "status": "new",
+  "diff": []
+}
+</code></pre>
+
+<h3>Response: No Changes</h3>
+
+<pre><code class="language-http">
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "status": "unchanged",
+  "diff": []
+}
+</code></pre>
+
+<h3>Status Values</h3>
+
+<table>
+<tr><th>Status</th><th>Description</th></tr>
+<tr><td><code>new</code></td><td>Object with this ID does not exist on the server. Will be created on apply.</td></tr>
+<tr><td><code>updated</code></td><td>Object exists and has differences. <code>diff</code> array contains the specific changes.</td></tr>
+<tr><td><code>unchanged</code></td><td>Object exists and is identical to the submitted definition.</td></tr>
+<tr><td><code>error</code></td><td>Comparison failed (e.g., permission denied, invalid type).</td></tr>
+</table>
+
+<h3>Diff Operation Types</h3>
+
+<table>
+<tr><th>Operation</th><th>Description</th></tr>
+<tr><td><code>replace</code></td><td>A field value has changed. <code>oldValue</code> and <code>newValue</code> are provided.</td></tr>
+<tr><td><code>add</code></td><td>A new field or array element was added. <code>newValue</code> is provided.</td></tr>
+<tr><td><code>remove</code></td><td>A field or array element was removed. <code>oldValue</code> is provided.</td></tr>
+</table>
+
+<hr>
+
+<h2>POST /api/saved_objects/_bulk_apply</h2>
+
+<p>Apply multiple resource definitions in a single atomic operation. The endpoint uses a <strong>validate-all-then-write</strong> strategy: all resources are validated first, and only if every resource passes validation are they written using <code>bulkCreate()</code>. If any resource fails validation, the entire batch is rejected and no changes are persisted. Creates objects that do not exist and updates those that do (upsert semantics).</p>
+
+<p><strong>Dependency resolution:</strong> Resources with <code>references</code> are automatically ordered using topological sort (Kahn's algorithm) so that dependencies are created before the objects that reference them. For example, if a dashboard references a visualization, the visualization is created first. Circular dependencies are detected and rejected with a <code>400 Bad Request</code> error listing the cycle.</p>
+
+<p><strong>Size limit:</strong> The number of resources in a single request is bounded by the <code>maxImportExportSize</code> configuration setting. Requests exceeding this limit are rejected with a <code>400 Bad Request</code> error.</p>
+
+<h3>Request</h3>
+
+<pre><code class="language-http">
+POST /api/saved_objects/_bulk_apply
+Content-Type: application/json
+osd-xsrf: true
+
+{
+  "resources": [
+    {
+      "type": "dashboard",
+      "id": "cpu-monitoring",
+      "attributes": {
+        "title": "CPU Monitoring",
+        "panelsJSON": [
+          {
+            "panelIndex": "1",
+            "gridData": { "x": 0, "y": 0, "w": 24, "h": 12, "i": "1" },
+            "type": "visualization",
+            "id": "cpu-line-chart"
+          }
+        ]
+      },
+      "labels": {
+        "env": "production",
+        "team": "platform",
+        "managed-by": "osdctl"
+      },
+      "annotations": {
+        "owner": "platform-team@company.com",
+        "last-applied-hash": "sha256:abc123..."
+      }
+    },
+    {
+      "type": "visualization",
+      "id": "cpu-line-chart",
+      "attributes": {
+        "title": "CPU Usage Line Chart",
+        "visState": "..."
+      },
+      "labels": {
+        "managed-by": "osdctl"
+      }
+    }
+  ],
+  "options": {
+    "dryRun": false,
+    "overwrite": true,
+    "createMissing": true
+  }
+}
+</code></pre>
+
+<h3>Request Fields</h3>
+
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+<tr><td><code>resources</code></td><td>array</td><td>Yes</td><td>Array of resource definitions to apply</td></tr>
+<tr><td><code>resources[].type</code></td><td>string</td><td>Yes</td><td>Saved object type (e.g., <code>dashboard</code>, <code>visualization</code>)</td></tr>
+<tr><td><code>resources[].id</code></td><td>string</td><td>Yes</td><td>Unique resource identifier</td></tr>
+<tr><td><code>resources[].attributes</code></td><td>object</td><td>Yes</td><td>Resource attributes</td></tr>
+<tr><td><code>resources[].labels</code></td><td>object</td><td>No</td><td>Key-value labels for filtering</td></tr>
+<tr><td><code>resources[].annotations</code></td><td>object</td><td>No</td><td>Free-form metadata</td></tr>
+<tr><td><code>options.dryRun</code></td><td>boolean</td><td>No</td><td>If <code>true</code>, validate and report what would change without persisting. Default: <code>false</code>.</td></tr>
+<tr><td><code>options.overwrite</code></td><td>boolean</td><td>No</td><td>If <code>true</code>, update existing objects. Default: <code>true</code>.</td></tr>
+<tr><td><code>options.createMissing</code></td><td>boolean</td><td>No</td><td>If <code>true</code>, create objects that do not exist. Default: <code>true</code>.</td></tr>
+</table>
+
+<h3>Response: Success</h3>
+
+<pre><code class="language-http">
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "success": true,
+  "results": [
+    {
+      "type": "dashboard",
+      "id": "cpu-monitoring",
+      "status": "updated",
+      "version": 6
+    },
+    {
+      "type": "visualization",
+      "id": "cpu-line-chart",
+      "status": "created",
+      "version": 1
+    }
+  ]
+}
+</code></pre>
+
+<h3>Response: Validation Failure</h3>
+
+<p>If any resource fails validation, the entire batch is rejected (transactional):</p>
+
+<pre><code class="language-http">
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+{
+  "success": false,
+  "message": "Validation failed for 1 resource(s)",
+  "results": [
+    {
+      "type": "dashboard",
+      "id": "cpu-monitoring",
+      "status": "valid"
+    },
+    {
+      "type": "visualization",
+      "id": "cpu-line-chart",
+      "status": "error",
+      "errors": [
+        {
+          "path": "attributes.visState",
+          "message": "must be a valid JSON object"
+        }
+      ]
+    }
+  ]
+}
+</code></pre>
+
+<h3>Per-Resource Status Values</h3>
+
+<table>
+<tr><th>Status</th><th>Description</th></tr>
+<tr><td><code>created</code></td><td>Object was created (did not previously exist)</td></tr>
+<tr><td><code>updated</code></td><td>Object was updated (existed with different content)</td></tr>
+<tr><td><code>unchanged</code></td><td>Object exists with identical content; no write performed</td></tr>
+<tr><td><code>error</code></td><td>Validation or write failed for this resource</td></tr>
+</table>
+
+<h3>Dry-Run Example</h3>
+
+<pre><code class="language-bash">
+curl -u admin:admin \
+  -X POST "http://localhost:5601/api/saved_objects/_bulk_apply" \
+  -H 'Content-Type: application/json' \
+  -H 'osd-xsrf: true' \
+  -d '{
+    "resources": [
+      {
+        "type": "dashboard",
+        "id": "test-dashboard",
+        "attributes": { "title": "Test", "panelsJSON": [] }
+      }
+    ],
+    "options": { "dryRun": true }
+  }'
+</code></pre>
+
+<h3>Optimistic Concurrency</h3>
+
+<p>When updating existing resources, you can include the <code>If-Match</code> header with the expected version number:</p>
+
+<pre><code class="language-http">
+POST /api/saved_objects/_bulk_apply
+If-Match: "5"
+osd-xsrf: true
+</code></pre>
+
+<p>If the deployed version does not match, the server responds with <code>409 Conflict</code>. This prevents overwriting concurrent changes from the UI or other tools. Omitting the header skips the version check (backward-compatible behavior).</p>
+
+<hr>
+
+<h2>POST /api/saved_objects/_export_clean</h2>
+
+<p>Export resources in a deterministic, Git-diff-friendly format. This is an alternative to the existing ndjson export that produces human-readable, sorted output suitable for version control.</p>
+
+<h3>Request</h3>
+
+<pre><code class="language-http">
+POST /api/saved_objects/_export_clean
+Content-Type: application/json
+Accept: application/yaml
+osd-xsrf: true
+
+{
+  "type": "dashboard",
+  "id": "cpu-monitoring"
+}
+</code></pre>
+
+<h3>Query Parameters</h3>
+
+<table>
+<tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>type</code></td><td>Resource type to export</td></tr>
+<tr><td><code>id</code></td><td>Specific resource ID (optional; omit to export all of a type)</td></tr>
+</table>
+
+<h3>Accept Header</h3>
+
+<table>
+<tr><th>Value</th><th>Output Format</th></tr>
+<tr><td><code>application/json</code></td><td>Deterministic JSON (sorted keys, 2-space indent)</td></tr>
+<tr><td><code>application/yaml</code></td><td>YAML</td></tr>
+</table>
+
+<h3>Response (YAML)</h3>
+
+<pre><code class="language-http">
+HTTP/1.1 200 OK
+Content-Type: application/yaml
+
+apiVersion: dashboard/v1
+metadata:
+  name: cpu-monitoring
+  labels:
+    env: production
+    managed-by: osdctl
+    team: platform
+  annotations:
+    last-applied-hash: "sha256:abc123..."
+    owner: platform-team@company.com
+spec:
+  title: "CPU Monitoring"
+  description: "Production CPU metrics across all clusters"
+  timeRange:
+    from: "now-1h"
+    to: "now"
+  refreshInterval: "30s"
+  panels:
+    - name: cpu-usage
+      type: visualization
+      visualization: line
+      gridPosition:
+        x: 0
+        y: 0
+        w: 24
+        h: 12
+      query:
+        language: PPL
+        query: "source = metrics | where name = 'cpu.usage' | stats avg(value) by host"
+      options:
+        showLegend: true
+  dataSources:
+    - name: metrics-cluster
+      type: opensearch
+      default: true
+</code></pre>
+
+<h3>Clean Format Design Principles</h3>
+
+<p>The clean export format differs from the existing ndjson export in several important ways:</p>
+
+<table>
+<tr><th>Aspect</th><th>ndjson Export</th><th>Clean Export</th></tr>
+<tr><td>Key ordering</td><td>Arbitrary</td><td>Sorted (deterministic)</td></tr>
+<tr><td>Server fields</td><td>Included in body</td><td>Separated into <code>metadata</code> block</td></tr>
+<tr><td>Panel format</td><td>Stringified JSON blob (<code>panelsJSON</code>)</td><td>Structured array with named references</td></tr>
+<tr><td>Readability</td><td>Machine-oriented</td><td>Human-readable</td></tr>
+<tr><td>Diff quality</td><td>Noisy, hard to review</td><td>Clean, meaningful diffs</td></tr>
+</table>
+
+<hr>
+
+<h2>POST /api/saved_objects/_unlock/{type}/{id}</h2>
+
+<p>Emergency unlock of a managed saved object. Managed objects (those with the <code>managed-by</code> label) are protected from direct UI edits by default. This endpoint removes the managed lock, allowing the object to be edited freely through the UI.</p>
+
+<p><strong>Use this only for emergency situations</strong> where you need to make an immediate change to a code-managed dashboard without going through the full DaC workflow.</p>
+
+<h3>Request</h3>
+
+<pre><code class="language-http">
+POST /api/saved_objects/_unlock/dashboard/cpu-monitoring
+Content-Type: application/json
+osd-xsrf: true
+</code></pre>
+
+<h3>Path Parameters</h3>
+
+<table>
+<tr><th>Parameter</th><th>Description</th></tr>
+<tr><td><code>type</code></td><td>Saved object type (e.g., <code>dashboard</code>, <code>visualization</code>)</td></tr>
+<tr><td><code>id</code></td><td>Saved object ID</td></tr>
+</table>
+
+<h3>Response: Success</h3>
+
+<pre><code class="language-http">
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "success": true,
+  "type": "dashboard",
+  "id": "cpu-monitoring",
+  "message": "Object unlocked. The managed-by label has been removed."
+}
+</code></pre>
+
+<h3>Response: Not Found</h3>
+
+<pre><code class="language-http">
+HTTP/1.1 404 Not Found
+Content-Type: application/json
+
+{
+  "statusCode": 404,
+  "error": "Not Found",
+  "message": "Saved object [dashboard/cpu-monitoring] not found"
+}
+</code></pre>
+
+<h3>Example</h3>
+
+<pre><code class="language-bash">
+curl -u admin:admin \
+  -X POST "http://localhost:5601/api/saved_objects/_unlock/dashboard/cpu-monitoring" \
+  -H 'osd-xsrf: true'
+</code></pre>
+
+<blockquote><p><strong>Warning:</strong> After unlocking, the object is no longer tracked as code-managed. The next <code>osdctl apply</code> will re-apply the code-managed version and restore the <code>managed-by</code> label, potentially overwriting any manual changes made after unlocking.</p></blockquote>
+
+<hr>
+
+<h2>GET /api/saved_objects/_schemas</h2>
+
+<p>Retrieve the typed JSON Schema definitions for saved object types. These schemas drive SDK auto-generation, validation, and IDE autocompletion.</p>
+
+<h3>List All Schemas</h3>
+
+<pre><code class="language-http">
+GET /api/saved_objects/_schemas
+</code></pre>
+
+<p><strong>Response:</strong></p>
+
+<pre><code class="language-http">
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "schemas": [
+    {
+      "type": "dashboard",
+      "version": "v1",
+      "url": "/api/saved_objects/_schemas/dashboard/v1"
+    },
+    {
+      "type": "visualization",
+      "version": "v1",
+      "url": "/api/saved_objects/_schemas/visualization/v1"
+    },
+    {
+      "type": "index-pattern",
+      "version": "v1",
+      "url": "/api/saved_objects/_schemas/index-pattern/v1"
+    },
+    {
+      "type": "search",
+      "version": "v1",
+      "url": "/api/saved_objects/_schemas/search/v1"
+    }
+  ]
+}
+</code></pre>
+
+<h3>Get a Specific Schema</h3>
+
+<pre><code class="language-http">
+GET /api/saved_objects/_schemas/dashboard/v1
+</code></pre>
+
+<p><strong>Response:</strong></p>
+
+<pre><code class="language-http">
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opensearch-dashboards://saved-objects/dashboard/v1",
+  "type": "object",
+  "properties": {
+    "title": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "panelsJSON": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/panel" }
+    },
+    "optionsJSON": {
+      "type": "object",
+      "properties": {
+        "useMargins": { "type": "boolean", "default": true },
+        "hidePanelTitles": { "type": "boolean", "default": false }
+      }
+    },
+    "timeRestore": { "type": "boolean" },
+    "timeTo": { "type": "string" },
+    "timeFrom": { "type": "string" },
+    "refreshInterval": { "$ref": "#/$defs/refreshInterval" }
+  },
+  "required": ["title", "panelsJSON"]
+}
+</code></pre>
+
+<p>You can use these schemas for IDE autocompletion by referencing them in your JSON/YAML files or configuring VS Code's JSON Schema association.</p>
+
+<hr>
+
+<h2>Labels and Annotations</h2>
+
+<p>Labels and annotations are metadata attached to saved objects for organization, filtering, and tooling integration.</p>
+
+<h3>Labels</h3>
+
+<p>Labels are <strong>indexed and queryable</strong> key-value pairs. They are used for filtering, selection, and organizational grouping.</p>
+
+<p><strong>Constraints:</strong></p>
+<ul>
+<li>Keys and values are strings</li>
+<li>Maximum 64 labels per object</li>
+<li>Keys follow the pattern <code>[a-zA-Z0-9._-/]+</code> (max 63 characters)</li>
+<li>Values are free-form strings (max 256 characters)</li>
+</ul>
+
+<p><strong>Reserved labels:</strong></p>
+
+<table>
+<tr><th>Label</th><th>Description</th></tr>
+<tr><td><code>managed-by</code></td><td>Identifies the tool managing this object (e.g., <code>osdctl</code>). The UI shows a badge for managed objects.</td></tr>
+<tr><td><code>env</code></td><td>Environment label (e.g., <code>production</code>, <code>staging</code>, <code>development</code>)</td></tr>
+<tr><td><code>team</code></td><td>Team ownership label</td></tr>
+</table>
+
+<h3>Annotations</h3>
+
+<p>Annotations are <strong>stored but not indexed</strong>. They are free-form metadata for tooling and documentation.</p>
+
+<p><strong>Common annotations:</strong></p>
+
+<table>
+<tr><th>Annotation</th><th>Description</th></tr>
+<tr><td><code>owner</code></td><td>Contact information for the dashboard owner</td></tr>
+<tr><td><code>source-repo</code></td><td>Git repository URL where the dashboard source lives</td></tr>
+<tr><td><code>last-applied-hash</code></td><td>SHA-256 hash of the last applied definition (used for drift detection)</td></tr>
+<tr><td><code>osdctl.opensearch.org/source</code></td><td>Indicates the source type (e.g., <code>dashboards-as-code</code>)</td></tr>
+</table>
+
+<h3>Querying by Labels</h3>
+
+<p>Extend the existing <code>_find</code> endpoint with label filters:</p>
+
+<pre><code class="language-http">
+GET /api/saved_objects/_find?type=dashboard&amp;labels=env:production,team:platform
+</code></pre>
+
+<p>This returns only dashboards that have both <code>env=production</code> and <code>team=platform</code> labels.</p>
+
+<h3>Managed-By Convention</h3>
+
+<p>When <code>osdctl apply</code> deploys a dashboard, it automatically sets:</p>
+
+<pre><code class="language-json">
+{
+  "labels": {
+    "managed-by": "osdctl"
+  },
+  "annotations": {
+    "last-applied-hash": "sha256:&lt;hash-of-definition&gt;"
+  }
+}
+</code></pre>
+
+<p>The OpenSearch Dashboards UI shows a visual indicator for objects with the <code>managed-by</code> label:</p>
+
+<ul>
+<li>A badge reading "Managed by code" appears on the dashboard card and detail page.</li>
+<li>A warning tooltip states "Edits may be overwritten by the next code deployment."</li>
+<li>The UI does <strong>not</strong> block manual editing (users may need to make emergency changes).</li>
+</ul>
+
+<p>The <code>last-applied-hash</code> annotation enables the CLI to detect drift: if the deployed hash differs from what <code>osdctl</code> last applied, someone made a manual change.</p>
+
+<hr>
+
+<h2>Error Responses</h2>
+
+<p>All endpoints use standard HTTP status codes and a consistent error format:</p>
+
+<table>
+<tr><th>Status</th><th>Description</th></tr>
+<tr><td><code>200</code></td><td>Success</td></tr>
+<tr><td><code>400</code></td><td>Invalid request (validation errors, malformed JSON)</td></tr>
+<tr><td><code>401</code></td><td>Authentication required</td></tr>
+<tr><td><code>403</code></td><td>Insufficient permissions</td></tr>
+<tr><td><code>404</code></td><td>Resource not found</td></tr>
+<tr><td><code>409</code></td><td>Conflict (version mismatch on optimistic concurrency check)</td></tr>
+<tr><td><code>500</code></td><td>Internal server error</td></tr>
+</table>
+
+<p><strong>Error response format:</strong></p>
+
+<pre><code class="language-json">
+{
+  "statusCode": 400,
+  "error": "Bad Request",
+  "message": "Descriptive error message"
+}
+</code></pre>
+
+<hr>
+
+<h2>Related Documentation</h2>
+
+<ul>
+<li><a href="/cli-reference">CLI Reference</a> -- The CLI uses these API endpoints internally</li>
+<li><a href="/sdk-reference">SDK Reference</a> -- The SDK generates definitions consumed by these endpoints</li>
+<li><a href="/ci-cd-guide">CI/CD Integration Guide</a> -- Using these APIs in automated pipelines</li>
+</ul>
+
+</body>
+</html>
