@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Index - Dashboards-as-Code</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 980px; margin: 0 auto; padding: 40px 20px; color: #1f2328; line-height: 1.6; background: #fff; }
+h1 { font-size: 2em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; margin-top: 1.5em; }
+h3 { font-size: 1.25em; margin-top: 1.5em; }
+code { background: #eff1f3; padding: 0.2em 0.4em; border-radius: 6px; font-size: 85%; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace; }
+pre { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; overflow-x: auto; }
+pre code { background: none; padding: 0; font-size: 85%; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+th, td { border: 1px solid #d1d9e0; padding: 6px 13px; text-align: left; }
+th { background: #f6f8fa; font-weight: 600; }
+tr:nth-child(2n) { background: #f6f8fa; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+blockquote { border-left: 4px solid #d1d9e0; color: #656d76; margin: 16px 0; padding: 0 16px; }
+hr { border: none; border-top: 1px solid #d1d9e0; margin: 24px 0; }
+nav { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; margin-bottom: 32px; }
+nav a { display: inline-block; margin: 4px 12px 4px 0; }
+.nav-current { font-weight: 700; color: #1f2328; }
+ul, ol { padding-left: 2em; }
+li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<nav><a href="/" class="nav-current">Overview</a> | <a href="/getting-started">Getting Started</a> | <a href="/sdk-reference">SDK Reference</a> | <a href="/cli-reference">CLI Reference</a> | <a href="/api-reference">API Reference</a> | <a href="/ci-cd-guide">CI/CD Guide</a> | <a href="/migration-guide">Migration Guide</a> | <a href="/cookbook">Cookbook</a></nav>
+<h1>Dashboards-as-Code for OpenSearch Dashboards</h1>
+
+<h2>What is Dashboards-as-Code?</h2>
+
+<p>Dashboards-as-Code (DaC) is a workflow for defining, validating, version-controlling, and deploying OpenSearch Dashboards programmatically. Instead of manually creating dashboards through the UI, you write dashboard definitions in TypeScript (with Python, Go, and Java coming soon), store them in Git, validate them in CI, and deploy them automatically.</p>
+
+<p>DaC treats dashboards the same way infrastructure-as-code tools treat cloud resources: as reviewable, testable, reproducible code artifacts.</p>
+
+<h2>Why Use Dashboards-as-Code?</h2>
+
+<table>
+<tr><th>Challenge</th><th>Without DaC</th><th>With DaC</th></tr>
+<tr><td><strong>Consistency at scale</strong></td><td>Manual UI clicks for 50-500+ dashboards. No way to enforce standards.</td><td>Define templates and generate dashboards from code. Enforce standards via linting.</td></tr>
+<tr><td><strong>Version control</strong></td><td>No history of who changed what. No rollback.</td><td>Every change is a Git commit with full audit trail and instant rollback.</td></tr>
+<tr><td><strong>Code review</strong></td><td>No peer review for dashboard changes.</td><td>Dashboard changes go through pull requests like any other code.</td></tr>
+<tr><td><strong>CI/CD automation</strong></td><td>Manual promotion across dev/staging/prod.</td><td>Automated build, validate, diff, and deploy pipelines.</td></tr>
+<tr><td><strong>Reuse and DRY</strong></td><td>Copy-paste panels across dashboards.</td><td>Shared panel libraries, parameterized templates, generated dashboards.</td></tr>
+<tr><td><strong>Disaster recovery</strong></td><td>Fragile ndjson exports.</td><td>Git is the source of truth. Redeploy from code at any time.</td></tr>
+</table>
+
+<h2>Architecture Overview</h2>
+
+<p>Dashboards-as-Code is built in four layers, each building on the one below it:</p>
+
+<pre><code class="language-">
++----------------------------------------------------------------------+
+|  Layer 4: CI/CD Integration                                          |
+|  GitHub Actions, GitLab CI, Docker, environment promotion            |
++----------------------------------------------------------------------+
+        |
+        v
++----------------------------------------------------------------------+
+|  Layer 3: CLI (osdctl)                                               |
+|  init, build, validate, diff, apply, pull, lint, preview             |
++----------------------------------------------------------------------+
+        |
+        v
++----------------------------------------------------------------------+
+|  Layer 2: SDK (@opensearch-dashboards/sdk)                           |
+|  TypeScript builders for Dashboard, Panel, Query, Variable,          |
+|  DataSource. Compiles to JSON/YAML. Client-side validation.          |
++----------------------------------------------------------------------+
+        |
+        v
++----------------------------------------------------------------------+
+|  Layer 1: Saved Objects API Extensions                               |
+|  _validate, _diff, _bulk_apply, _export_clean, _schemas             |
+|  Labels, annotations, optimistic concurrency, typed schemas          |
++----------------------------------------------------------------------+
+        |
+        v
++----------------------------------------------------------------------+
+|  OpenSearch Dashboards Server / Saved Objects Store (.kibana index)   |
++----------------------------------------------------------------------+
+</code></pre>
+
+<p><strong>Layer 1 (API)</strong> extends the existing Saved Objects API with validation, diff, bulk apply, labels, annotations, and typed JSON Schemas. Existing APIs and UI workflows continue to work unchanged.</p>
+
+<p><strong>Layer 2 (SDK)</strong> provides fluent TypeScript builders that compile dashboard definitions to JSON or YAML. SDKs are auto-generated from JSON Schema definitions to stay in sync with the server.</p>
+
+<p><strong>Layer 3 (CLI)</strong> is <code>osdctl</code>, a standalone command-line tool that orchestrates the full DaC workflow: scaffold projects, build SDK code, validate definitions, diff against deployed state, apply changes, and pull existing dashboards.</p>
+
+<p><strong>Layer 4 (CI/CD)</strong> provides GitHub Actions, GitLab CI templates, and Docker images for automated pipeline integration.</p>
+
+<h2>Comparison with Other Approaches</h2>
+
+<table>
+<tr><th>Aspect</th><th>OpenSearch DaC</th><th>Grafana 12</th><th>Perses (CNCF)</th><th>Datadog</th></tr>
+<tr><td><strong>SDK languages</strong></td><td>TypeScript (Phase 1); Python, Go, Java planned</td><td>Go, Java, PHP, Python, TypeScript</td><td>CUE, Go</td><td>Python, Go, Java, Ruby, TypeScript (API clients)</td></tr>
+<tr><td><strong>CLI tool</strong></td><td>osdctl</td><td>grafanactl</td><td>percli</td><td>datadog-ci</td></tr>
+<tr><td><strong>Schema</strong></td><td>JSON Schema, versioned (<code>dashboard/v1</code>)</td><td>Dashboard Schema v2, OpenAPI</td><td>CUE schemas</td><td>REST API specs</td></tr>
+<tr><td><strong>Git integration</strong></td><td>CLI + CI/CD (Git Sync planned)</td><td>Native Git Sync (experimental)</td><td>CLI + CI/CD</td><td>CLI + CI/CD</td></tr>
+<tr><td><strong>Terraform</strong></td><td>Planned (Phase 3)</td><td>Mature provider</td><td>None</td><td>Mature provider</td></tr>
+<tr><td><strong>Open source</strong></td><td>Fully open source</td><td>Partially gated (Cloud/Enterprise)</td><td>Fully open source</td><td>Proprietary</td></tr>
+<tr><td><strong>Query builders</strong></td><td>PPL, DQL, SQL, Lucene (native)</td><td>PromQL, LogQL</td><td>PromQL, LogQL</td><td>Datadog query language</td></tr>
+</table>
+
+<p><strong>Key differentiators for OpenSearch DaC:</strong></p>
+<ul>
+<li>All features are fully open source with no enterprise gating.</li>
+<li>First-class support for OpenSearch-native query languages (PPL, DQL, SQL, Lucene).</li>
+<li>Extends the battle-tested Saved Objects API rather than building a parallel system.</li>
+<li>Designed for Grafana-to-OpenSearch migration with <code>osdctl convert</code>.</li>
+</ul>
+
+<h2>Documentation</h2>
+
+<table>
+<tr><th>Document</th><th>Description</th></tr>
+<tr><td><a href="/getting-started">Getting Started</a></td><td>Install the tools, create your first project, build and deploy a dashboard</td></tr>
+<tr><td><a href="/sdk-reference">TypeScript SDK Reference</a></td><td>Complete API reference for the <code>@opensearch-dashboards/sdk</code> package</td></tr>
+<tr><td><a href="/cli-reference">CLI Reference</a></td><td>All <code>osdctl</code> commands, flags, configuration, and examples</td></tr>
+<tr><td><a href="/api-reference">API Reference</a></td><td>Server-side REST API endpoints for validation, diff, bulk apply, and export</td></tr>
+<tr><td><a href="/ci-cd-guide">CI/CD Integration Guide</a></td><td>GitHub Actions, GitLab CI, Docker, environment promotion, drift detection</td></tr>
+<tr><td><a href="/migration-guide">Migration Guide</a></td><td>Migrate from manual UI workflows, ndjson exports, or Grafana</td></tr>
+<tr><td><a href="/cookbook">Cookbook</a></td><td>Common patterns, reusable components, anti-patterns</td></tr>
+</table>
+
+<h2>Quick Start</h2>
+
+<pre><code class="language-bash">
+# Install the CLI
+npm install -g @opensearch-dashboards/cli
+
+# Scaffold a new project
+osdctl init --language typescript my-dashboards
+
+# Enter the project and install dependencies
+cd my-dashboards
+npm install
+
+# Build the example dashboard
+osdctl build -d src/
+
+# Validate
+osdctl validate
+
+# Deploy (dry-run first)
+osdctl apply --dry-run --profile dev
+osdctl apply --profile dev
+</code></pre>
+
+<p>For the full walkthrough, see the <a href="/getting-started">Getting Started Guide</a>.</p>
+
+</body>
+</html>

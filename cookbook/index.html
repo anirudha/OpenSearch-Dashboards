@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cookbook - Dashboards-as-Code</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 980px; margin: 0 auto; padding: 40px 20px; color: #1f2328; line-height: 1.6; background: #fff; }
+h1 { font-size: 2em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; margin-top: 1.5em; }
+h3 { font-size: 1.25em; margin-top: 1.5em; }
+code { background: #eff1f3; padding: 0.2em 0.4em; border-radius: 6px; font-size: 85%; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace; }
+pre { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; overflow-x: auto; }
+pre code { background: none; padding: 0; font-size: 85%; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+th, td { border: 1px solid #d1d9e0; padding: 6px 13px; text-align: left; }
+th { background: #f6f8fa; font-weight: 600; }
+tr:nth-child(2n) { background: #f6f8fa; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+blockquote { border-left: 4px solid #d1d9e0; color: #656d76; margin: 16px 0; padding: 0 16px; }
+hr { border: none; border-top: 1px solid #d1d9e0; margin: 24px 0; }
+nav { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; margin-bottom: 32px; }
+nav a { display: inline-block; margin: 4px 12px 4px 0; }
+.nav-current { font-weight: 700; color: #1f2328; }
+ul, ol { padding-left: 2em; }
+li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<nav><a href="/">Overview</a> | <a href="/getting-started">Getting Started</a> | <a href="/sdk-reference">SDK Reference</a> | <a href="/cli-reference">CLI Reference</a> | <a href="/api-reference">API Reference</a> | <a href="/ci-cd-guide">CI/CD Guide</a> | <a href="/migration-guide">Migration Guide</a> | <a href="/cookbook" class="nav-current">Cookbook</a></nav>
+<h1>Cookbook: Common Patterns</h1>
+
+<p>This cookbook provides reusable patterns for common Dashboards-as-Code scenarios. Each pattern includes a complete code example and explanation.</p>
+
+<hr>
+
+<h2>Pattern: Generating Dashboards Per-Service from a List</h2>
+
+<p>When you have many services that all need the same standard monitoring dashboard, generate them programmatically rather than writing each one by hand.</p>
+
+<pre><code class="language-typescript">
+// src/dashboards/per-service.ts
+import { Dashboard, Panel, Query, DataSource } from '@opensearch-dashboards/sdk';
+
+interface ServiceConfig {
+  name: string;
+  team: string;
+  index: string;
+  owner: string;
+}
+
+const services: ServiceConfig[] = [
+  { name: 'payment-api', team: 'payments', index: 'logs-payment', owner: 'payments@company.com' },
+  { name: 'user-service', team: 'identity', index: 'logs-user', owner: 'identity@company.com' },
+  { name: 'order-service', team: 'commerce', index: 'logs-order', owner: 'commerce@company.com' },
+  { name: 'notification-api', team: 'platform', index: 'logs-notify', owner: 'platform@company.com' },
+  { name: 'search-service', team: 'search', index: 'logs-search', owner: 'search@company.com' },
+];
+
+for (const svc of services) {
+  Dashboard.create(`${svc.name}-monitoring`)
+    .title(`${svc.name} Monitoring`)
+    .description(`Standard monitoring dashboard for ${svc.name}`)
+    .labels({ env: 'production', team: svc.team, service: svc.name })
+    .annotation('owner', svc.owner)
+    .annotation('generated', 'true')
+    .timeRange('now-1h', 'now')
+    .refreshInterval('30s')
+    .addPanel(
+      Panel.create('request-rate')
+        .visualization('line')
+        .gridPosition({ x: 0, y: 0, w: 24, h: 10 })
+        .query(Query.ppl(`source = ${svc.index} | stats count() as requests by span(timestamp, 1m)`))
+        .option('showLegend', true)
+    )
+    .addPanel(
+      Panel.create('error-rate')
+        .visualization('line')
+        .gridPosition({ x: 24, y: 0, w: 24, h: 10 })
+        .query(Query.ppl(`source = ${svc.index} | where level = 'ERROR' | stats count() as errors by span(timestamp, 1m)`))
+        .option('showLegend', true)
+    )
+    .addPanel(
+      Panel.create('p95-latency')
+        .visualization('line')
+        .gridPosition({ x: 0, y: 10, w: 24, h: 10 })
+        .query(Query.ppl(`source = ${svc.index} | stats percentile(latency_ms, 95) as p95 by span(timestamp, 1m)`))
+    )
+    .addPanel(
+      Panel.create('recent-errors')
+        .visualization('table')
+        .gridPosition({ x: 24, y: 10, w: 24, h: 10 })
+        .query(Query.ppl(`source = ${svc.index} | where level = 'ERROR' | sort - timestamp | fields timestamp, message, trace_id | head 20`))
+    )
+    .addDataSource(DataSource.create(`${svc.name}-logs`).type('opensearch').default(true))
+    .toYAML(`built/${svc.name}-monitoring.yaml`);
+}
+</code></pre>
+
+<p>Running <code>osdctl build -f src/dashboards/per-service.ts</code> produces 5 dashboard files, one per service, all following the same layout but with service-specific data sources and queries.</p>
+
+<p>To add a new service, add an entry to the <code>services</code> array and rebuild.</p>
+
+<hr>
+
+<h2>Pattern: Shared Panel Library Across Teams</h2>
+
+<p>Create a centralized library of standard panels that multiple teams import and reuse.</p>
+
+<h3>Define the Library</h3>
+
+<pre><code class="language-typescript">
+// shared/panels/standard.ts
+import { Panel, Query } from '@opensearch-dashboards/sdk';
+
+/**
+ * Standard request rate panel (line chart).
+ */
+export function requestRatePanel(name: string, index: string): Panel {
+  return Panel.create(name)
+    .visualization('line')
+    .gridPosition({ x: 0, y: 0, w: 24, h: 10 })
+    .query(Query.ppl(`source = ${index} | stats count() as requests by span(timestamp, 1m)`))
+    .option('showLegend', true)
+    .option('yAxisLabel', 'Requests/min');
+}
+
+/**
+ * Standard error rate panel (area chart).
+ */
+export function errorRatePanel(name: string, index: string): Panel {
+  return Panel.create(name)
+    .visualization('area')
+    .gridPosition({ x: 0, y: 0, w: 24, h: 10 })
+    .query(Query.ppl(`source = ${index} | where status &gt;= 500 | stats count() as errors by span(timestamp, 1m)`))
+    .option('showLegend', true)
+    .option('yAxisLabel', 'Errors/min');
+}
+
+/**
+ * Standard latency percentiles panel (line chart with p50, p95, p99).
+ */
+export function latencyPercentilesPanel(name: string, index: string): Panel {
+  return Panel.create(name)
+    .visualization('line')
+    .gridPosition({ x: 0, y: 0, w: 24, h: 10 })
+    .query(Query.ppl(
+      `source = ${index} | stats ` +
+      `percentile(latency_ms, 50) as p50, ` +
+      `percentile(latency_ms, 95) as p95, ` +
+      `percentile(latency_ms, 99) as p99 ` +
+      `by span(timestamp, 1m)`
+    ))
+    .option('showLegend', true)
+    .option('yAxisLabel', 'Latency (ms)');
+}
+
+/**
+ * Standard health check metric (gauge).
+ */
+export function healthGauge(name: string, index: string): Panel {
+  return Panel.create(name)
+    .visualization('gauge')
+    .gridPosition({ x: 0, y: 0, w: 8, h: 8 })
+    .query(Query.ppl(`source = ${index} | where status &lt; 500 | stats count() as ok | eval health = ok * 100 / (ok + 1)`))
+    .option('min', 0)
+    .option('max', 100)
+    .option('thresholds', [
+      { value: 0, color: 'red' },
+      { value: 90, color: 'yellow' },
+      { value: 99, color: 'green' },
+    ]);
+}
+
+/**
+ * Markdown header panel for section breaks.
+ */
+export function sectionHeader(name: string, title: string, subtitle?: string): Panel {
+  const content = subtitle ? `## ${title}\n${subtitle}` : `## ${title}`;
+  return Panel.create(name)
+    .visualization('markdown')
+    .gridPosition({ x: 0, y: 0, w: 48, h: 3 })
+    .option('content', content);
+}
+</code></pre>
+
+<h3>Use the Library</h3>
+
+<pre><code class="language-typescript">
+// src/dashboards/payment-api.ts
+import { Dashboard, DataSource } from '@opensearch-dashboards/sdk';
+import {
+  sectionHeader,
+  requestRatePanel,
+  errorRatePanel,
+  latencyPercentilesPanel,
+  healthGauge,
+} from '../../shared/panels/standard';
+
+const INDEX = 'logs-payment-api';
+
+Dashboard.create('payment-api-overview')
+  .title('Payment API Overview')
+  .description('Standard operational dashboard for the Payment API service')
+  .labels({ env: 'production', team: 'payments', service: 'payment-api' })
+  .annotation('owner', 'payments@company.com')
+  .timeRange('now-1h', 'now')
+  .refreshInterval('30s')
+  // Header row
+  .addPanel(sectionHeader('header', 'Payment API', 'Real-time operational metrics'))
+  // Health gauge
+  .addPanel(healthGauge('health', INDEX))
+  // Traffic section
+  .addPanel(requestRatePanel('request-rate', INDEX))
+  .addPanel(errorRatePanel('error-rate', INDEX))
+  // Latency section
+  .addPanel(latencyPercentilesPanel('latency', INDEX))
+  .addDataSource(DataSource.create('payment-logs').type('opensearch').default(true))
+  .toYAML('built/payment-api-overview.yaml');
+</code></pre>
+
+<p>This pattern ensures consistency across all teams while allowing customization where needed.</p>
+
+<hr>
+
+<h2>Pattern: Environment-Specific Overrides</h2>
+
+<p>Different environments often require different data sources, time ranges, or thresholds. Use environment variables or configuration objects to parameterize dashboards.</p>
+
+<h3>Using Environment Variables</h3>
+
+<pre><code class="language-typescript">
+// src/dashboards/cpu-monitoring.ts
+import { Dashboard, Panel, Query, DataSource } from '@opensearch-dashboards/sdk';
+
+const ENV = process.env.DEPLOY_ENV || 'dev';
+
+// Environment-specific configuration
+const envConfig: Record&lt;string, {
+  dataSource: string;
+  refreshInterval: string;
+  timeRange: { from: string; to: string };
+  alertThreshold: number;
+}&gt; = {
+  dev: {
+    dataSource: 'dev-metrics',
+    refreshInterval: '10s',
+    timeRange: { from: 'now-30m', to: 'now' },
+    alertThreshold: 95,
+  },
+  staging: {
+    dataSource: 'staging-metrics',
+    refreshInterval: '30s',
+    timeRange: { from: 'now-1h', to: 'now' },
+    alertThreshold: 90,
+  },
+  prod: {
+    dataSource: 'prod-metrics-cluster',
+    refreshInterval: '1m',
+    timeRange: { from: 'now-6h', to: 'now' },
+    alertThreshold: 80,
+  },
+};
+
+const config = envConfig[ENV];
+if (!config) {
+  throw new Error(`Unknown environment: ${ENV}. Valid: ${Object.keys(envConfig).join(', ')}`);
+}
+
+Dashboard.create('cpu-monitoring')
+  .title(`CPU Monitoring (${ENV})`)
+  .description(`CPU metrics for the ${ENV} environment`)
+  .labels({ env: ENV, team: 'platform' })
+  .timeRange(config.timeRange.from, config.timeRange.to)
+  .refreshInterval(config.refreshInterval)
+  .addPanel(
+    Panel.create('cpu-usage')
+      .visualization('gauge')
+      .gridPosition({ x: 0, y: 0, w: 12, h: 8 })
+      .query(Query.ppl("source = metrics | stats avg(cpu_percent) as usage"))
+      .option('min', 0)
+      .option('max', 100)
+      .option('thresholds', [
+        { value: 0, color: 'green' },
+        { value: config.alertThreshold, color: 'red' },
+      ])
+  )
+  .addDataSource(DataSource.create(config.dataSource).type('opensearch').default(true))
+  .toYAML('built/cpu-monitoring.yaml');
+</code></pre>
+
+<p>Build for each environment in CI:</p>
+
+<pre><code class="language-bash">
+DEPLOY_ENV=staging osdctl build -f src/dashboards/cpu-monitoring.ts
+osdctl apply --profile staging
+
+DEPLOY_ENV=prod osdctl build -f src/dashboards/cpu-monitoring.ts
+osdctl apply --profile prod
+</code></pre>
+
+<hr>
+
+<h2>Pattern: Dashboard Versioning and Rollback</h2>
+
+<p>Since all dashboard definitions are in Git, versioning and rollback are handled through standard Git operations.</p>
+
+<h3>Tag Releases</h3>
+
+<pre><code class="language-bash">
+# After validating a set of dashboard changes
+git tag -a dashboards-v1.5.0 -m "Add latency percentile panels to all service dashboards"
+git push origin dashboards-v1.5.0
+</code></pre>
+
+<h3>Rollback to a Previous Version</h3>
+
+<pre><code class="language-bash">
+# Check out the previous tag
+git checkout dashboards-v1.4.0
+
+# Rebuild and deploy
+osdctl build -d src/dashboards/ -o yaml
+osdctl apply --profile prod
+
+# Return to main
+git checkout main
+</code></pre>
+
+<h3>Rollback a Single Dashboard</h3>
+
+<pre><code class="language-bash">
+# Find when the dashboard was last known-good
+git log --oneline -- src/dashboards/cpu-monitoring.ts
+
+# Check out that specific file from a previous commit
+git checkout abc123 -- src/dashboards/cpu-monitoring.ts
+
+# Build and deploy
+osdctl build -f src/dashboards/cpu-monitoring.ts
+osdctl apply --profile prod
+
+# Commit the rollback
+git add src/dashboards/cpu-monitoring.ts
+git commit -m "Rollback cpu-monitoring to known-good state"
+</code></pre>
+
+<hr>
+
+<h2>Pattern: Validating Dashboards in a Pre-Commit Hook</h2>
+
+<p>Catch validation errors before they are committed using a Git pre-commit hook.</p>
+
+<h3>Using a Shell Script</h3>
+
+<pre><code class="language-bash">
+#!/usr/bin/env bash
+# .git/hooks/pre-commit (make executable: chmod +x .git/hooks/pre-commit)
+set -euo pipefail
+
+# Check if any dashboard files are staged
+STAGED_DASHBOARDS=$(git diff --cached --name-only --diff-filter=ACM -- 'src/dashboards/*.ts' 'src/dashboards/*.json' 'src/dashboards/*.yaml')
+
+if [ -z "$STAGED_DASHBOARDS" ]; then
+  exit 0
+fi
+
+echo "Dashboard files staged for commit. Running validation..."
+
+# Build staged dashboard files
+for file in $STAGED_DASHBOARDS; do
+  if [[ "$file" == *.ts ]]; then
+    osdctl build -f "$file" -o yaml 2&gt;&amp;1 || {
+      echo "BUILD FAILED: $file"
+      exit 1
+    }
+  fi
+done
+
+# Validate built output
+osdctl validate --input-dir ./built 2&gt;&amp;1 || {
+  echo "VALIDATION FAILED"
+  exit 1
+}
+
+# Lint
+osdctl lint --input-dir ./built 2&gt;&amp;1 || {
+  echo "LINT FAILED"
+  exit 1
+}
+
+echo "All dashboard validations passed."
+</code></pre>
+
+<h3>Using Husky (npm-based projects)</h3>
+
+<p>Install husky:</p>
+
+<pre><code class="language-bash">
+npm install --save-dev husky
+npx husky init
+</code></pre>
+
+<p>Create the hook:</p>
+
+<pre><code class="language-bash">
+# .husky/pre-commit
+osdctl build -d src/dashboards/ -o yaml
+osdctl validate --input-dir ./built
+osdctl lint --input-dir ./built
+</code></pre>
+
+<p>Add to <code>package.json</code>:</p>
+
+<pre><code class="language-json">
+{
+  "scripts": {
+    "prepare": "husky"
+  }
+}
+</code></pre>
+
+<hr>
+
+<h2>Pattern: Multi-Tenant Dashboards with Workspace Support</h2>
+
+<p>OpenSearch Dashboards supports workspaces (multi-tenancy). When managing dashboards across workspaces, organize your code by workspace.</p>
+
+<h3>Directory Structure</h3>
+
+<pre><code class="language-">
+src/
+  dashboards/
+    global/                    # Dashboards available in all workspaces
+      system-health.ts
+    workspace-analytics/       # Analytics team workspace
+      user-analytics.ts
+      conversion-funnel.ts
+    workspace-security/        # Security team workspace
+      security-overview.ts
+      threat-detection.ts
+</code></pre>
+
+<h3>Workspace-Aware Build and Deploy</h3>
+
+<pre><code class="language-typescript">
+// src/dashboards/workspace-analytics/user-analytics.ts
+import { Dashboard, Panel, Query, DataSource } from '@opensearch-dashboards/sdk';
+
+Dashboard.create('user-analytics')
+  .title('User Analytics')
+  .description('User engagement and retention metrics')
+  .labels({
+    env: 'production',
+    team: 'analytics',
+    workspace: 'analytics',  // Label for workspace association
+  })
+  .annotation('workspace', 'analytics')
+  // ... panels and data sources
+  .toYAML('built/workspace-analytics/user-analytics.yaml');
+</code></pre>
+
+<p>Deploy per workspace:</p>
+
+<pre><code class="language-bash">
+# Deploy global dashboards
+osdctl apply --input-dir ./built/global --profile prod
+
+# Deploy analytics workspace dashboards
+osdctl apply --input-dir ./built/workspace-analytics --profile prod
+
+# Deploy security workspace dashboards
+osdctl apply --input-dir ./built/workspace-security --profile prod
+</code></pre>
+
+<hr>
+
+<h2>Anti-Patterns to Avoid</h2>
+
+<h3>1. Committing built output to Git</h3>
+
+<p><strong>Problem:</strong> Committing the <code>built/</code> directory creates merge conflicts, duplicates source of truth, and bloats the repository.</p>
+
+<p><strong>Solution:</strong> Add <code>built/</code> to <code>.gitignore</code>. Build artifacts are generated in CI from the source files.</p>
+
+<pre><code class="language-gitignore">
+# .gitignore
+built/
+</code></pre>
+
+<h3>2. Hardcoding environment-specific values</h3>
+
+<p><strong>Problem:</strong> Putting production URLs, credentials, or data source names directly in dashboard code makes it impossible to promote across environments.</p>
+
+<p><strong>Solution:</strong> Use environment variables or configuration objects for anything that varies between environments. See the <a href="#pattern-environment-specific-overrides">environment-specific overrides pattern</a> above.</p>
+
+<h3>3. One giant file for all dashboards</h3>
+
+<p><strong>Problem:</strong> Putting all dashboard definitions in a single file makes it hard to review changes, causes merge conflicts, and slows builds.</p>
+
+<p><strong>Solution:</strong> One file per dashboard (or per logical group of related dashboards). The per-service generation pattern is an exception where a single file produces multiple dashboards.</p>
+
+<h3>4. Manual UI edits to code-managed dashboards</h3>
+
+<p><strong>Problem:</strong> Editing a code-managed dashboard through the UI creates drift. The next <code>osdctl apply</code> will overwrite the manual change.</p>
+
+<p><strong>Solution:</strong> Always make changes through the code workflow. For emergencies, make the UI edit, then immediately pull the change into code:</p>
+
+<pre><code class="language-bash">
+osdctl pull --profile prod --label managed-by=osdctl -o yaml
+# Diff against your source, incorporate changes, commit
+</code></pre>
+
+<h3>5. Skipping validation in CI</h3>
+
+<p><strong>Problem:</strong> Deploying without validation can push broken dashboards to production.</p>
+
+<p><strong>Solution:</strong> Always run <code>osdctl validate</code> and <code>osdctl lint</code> as mandatory CI steps. Fail the pipeline on errors.</p>
+
+<h3>6. Using auto-generated panel names</h3>
+
+<p><strong>Problem:</strong> Panel names like <code>panel-1</code>, <code>panel-2</code> are meaningless and make diffs hard to understand.</p>
+
+<p><strong>Solution:</strong> Use descriptive, stable names: <code>cpu-usage-over-time</code>, <code>error-rate-by-endpoint</code>, <code>top-slow-queries</code>.</p>
+
+<h3>7. Not setting labels</h3>
+
+<p><strong>Problem:</strong> Without labels, you cannot filter, organize, or audit dashboards at scale. You cannot determine which team owns a dashboard or which environment it belongs to.</p>
+
+<p><strong>Solution:</strong> Always set at minimum <code>env</code> and <code>team</code> labels. Configure lint rules to enforce this:</p>
+
+<pre><code class="language-yaml">
+# .osdctl.yaml
+lint:
+  require-labels:
+    - env
+    - team
+</code></pre>
+
+<h3>8. Deploying directly from a developer workstation</h3>
+
+<p><strong>Problem:</strong> Deploying from a local machine bypasses code review, validation, and audit trails.</p>
+
+<p><strong>Solution:</strong> Deploy through CI/CD pipelines only. Use <code>osdctl apply --dry-run</code> locally for testing, and let the pipeline handle actual deployments.</p>
+
+<hr>
+
+<h2>Related Documentation</h2>
+
+<ul>
+<li><a href="/getting-started">Getting Started</a> -- Initial setup walkthrough</li>
+<li><a href="/sdk-reference">SDK Reference</a> -- Full builder API documentation</li>
+<li><a href="/cli-reference">CLI Reference</a> -- All <code>osdctl</code> commands and flags</li>
+<li><a href="/ci-cd-guide">CI/CD Integration Guide</a> -- Pipeline configurations</li>
+<li><a href="/migration-guide">Migration Guide</a> -- Moving existing dashboards to code</li>
+</ul>
+
+</body>
+</html>

@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cli Reference - Dashboards-as-Code</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 980px; margin: 0 auto; padding: 40px 20px; color: #1f2328; line-height: 1.6; background: #fff; }
+h1 { font-size: 2em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; margin-top: 1.5em; }
+h3 { font-size: 1.25em; margin-top: 1.5em; }
+code { background: #eff1f3; padding: 0.2em 0.4em; border-radius: 6px; font-size: 85%; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace; }
+pre { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; overflow-x: auto; }
+pre code { background: none; padding: 0; font-size: 85%; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+th, td { border: 1px solid #d1d9e0; padding: 6px 13px; text-align: left; }
+th { background: #f6f8fa; font-weight: 600; }
+tr:nth-child(2n) { background: #f6f8fa; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+blockquote { border-left: 4px solid #d1d9e0; color: #656d76; margin: 16px 0; padding: 0 16px; }
+hr { border: none; border-top: 1px solid #d1d9e0; margin: 24px 0; }
+nav { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; margin-bottom: 32px; }
+nav a { display: inline-block; margin: 4px 12px 4px 0; }
+.nav-current { font-weight: 700; color: #1f2328; }
+ul, ol { padding-left: 2em; }
+li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<nav><a href="/">Overview</a> | <a href="/getting-started">Getting Started</a> | <a href="/sdk-reference">SDK Reference</a> | <a href="/cli-reference" class="nav-current">CLI Reference</a> | <a href="/api-reference">API Reference</a> | <a href="/ci-cd-guide">CI/CD Guide</a> | <a href="/migration-guide">Migration Guide</a> | <a href="/cookbook">Cookbook</a></nav>
+<h1>CLI Reference: osdctl</h1>
+
+<p><code>osdctl</code> is the command-line tool for Dashboards-as-Code workflows. It orchestrates building, validating, diffing, deploying, and pulling OpenSearch Dashboards resources.</p>
+
+<h2>Installation</h2>
+
+<pre><code class="language-bash">
+# Via npm (recommended)
+npm install -g @opensearch-dashboards/cli
+
+# Via Homebrew (macOS/Linux)
+brew install opensearch-project/tap/osdctl
+
+# Via Docker
+docker pull opensearchproject/osdctl:latest
+docker run --rm opensearchproject/osdctl osdctl --version
+
+# Verify
+osdctl --version
+</code></pre>
+
+<h2>Global Options</h2>
+
+<table>
+<tr><th>Flag</th><th>Short</th><th>Description</th></tr>
+<tr><td><code>--help</code></td><td><code>-h</code></td><td>Show help for the top-level CLI or a specific command</td></tr>
+<tr><td><code>--version</code></td><td><code>-v</code></td><td>Print the CLI version</td></tr>
+<tr><td><code>--profile</code></td><td>Select a named connection profile from the configuration</td></tr>
+</table>
+
+<h2>Configuration</h2>
+
+<h3>Config File Location</h3>
+
+<p><code>osdctl</code> reads configuration from two locations (merged, project config takes precedence):</p>
+
+<ol>
+<li><strong>User-level:</strong> <code>~/.osdctl/config.yaml</code></li>
+<li><strong>Project-level:</strong> <code>.osdctl.yaml</code> in the current directory (or nearest parent)</li>
+</ol>
+
+<h3>Config File Format</h3>
+
+<pre><code class="language-yaml">
+# Default profile to use when --profile is not specified
+defaultProfile: dev
+
+# Default output directory for build artifacts
+outputDir: ./built
+
+# Connection profiles for different environments
+profiles:
+  dev:
+    url: http://localhost:5601
+    auth:
+      type: basic
+      username: admin
+      # Password read from OSD_PASSWORD env var
+  staging:
+    url: https://dashboards-staging.internal:5601
+    auth:
+      type: basic
+      username: deployer
+  prod:
+    url: https://dashboards.company.com:5601
+    auth:
+      type: saml
+      token_command: "aws sso get-role-credentials --role-name DashboardAdmin --account-id 123456 --output text --query roleCredentials.accessKeyId"
+
+# Lint rules
+lint:
+  require-labels:
+    - env
+    - team
+  require-annotations:
+    - owner
+  require-description: warn
+  max-panels: 50
+  naming-convention: kebab-case
+  allowed-data-sources:
+    - "metrics-*"
+    - "logs-*"
+</code></pre>
+
+<h3>Authentication</h3>
+
+<p>Credentials are resolved in this order:</p>
+
+<ol>
+<li><strong>Environment variables</strong> (highest priority):</li>
+<li><code>OSD_URL</code> -- Override the profile URL</li>
+<li><code>OSD_TOKEN</code> -- Bearer token authentication</li>
+<li><code>OSD_USERNAME</code> -- Basic auth username</li>
+<li><code>OSD_PASSWORD</code> -- Basic auth password</li>
+<li><strong>Profile config</strong> -- <code>auth</code> section in the profile</li>
+<li><strong>Interactive prompt</strong> -- If a password is required but not found, <code>osdctl</code> prompts interactively</li>
+</ol>
+
+<p>Supported authentication types:</p>
+
+<table>
+<tr><th>Type</th><th>Config</th><th>Description</th></tr>
+<tr><td><code>basic</code></td><td><code>type: basic</code>, <code>username</code></td><td>Username/password. Password from <code>OSD_PASSWORD</code> env var.</td></tr>
+<tr><td><code>token</code></td><td><code>type: token</code></td><td>Bearer token. Token from <code>OSD_TOKEN</code> env var.</td></tr>
+<tr><td><code>saml</code></td><td><code>type: saml</code>, <code>token_command</code></td><td>Executes the <code>token_command</code> to obtain a token dynamically.</td></tr>
+</table>
+
+<p><strong>Security note:</strong> Credentials are never stored in config files. Always use environment variables, keychains, or <code>token_command</code> for credential retrieval.</p>
+
+<h3>Environment Variables</h3>
+
+<table>
+<tr><th>Variable</th><th>Description</th></tr>
+<tr><td><code>OSD_URL</code></td><td>OpenSearch Dashboards URL (overrides profile)</td></tr>
+<tr><td><code>OSD_TOKEN</code></td><td>Bearer token for authentication</td></tr>
+<tr><td><code>OSD_USERNAME</code></td><td>Basic auth username</td></tr>
+<tr><td><code>OSD_PASSWORD</code></td><td>Basic auth password</td></tr>
+<tr><td><code>OSD_PROFILE</code></td><td>Default profile name (overrides <code>defaultProfile</code> in config)</td></tr>
+<tr><td><code>OSDCTL_CONFIG</code></td><td>Custom path to config file</td></tr>
+</table>
+
+<hr>
+
+<h2>Commands</h2>
+
+<h3><code>osdctl init</code></h3>
+
+<p>Scaffold a new Dashboards-as-Code project with SDK dependencies, folder structure, example dashboards, and CI configuration.</p>
+
+<p><strong>Usage:</strong></p>
+
+<pre><code class="language-bash">
+osdctl init [directory] [options]
+</code></pre>
+
+<p><strong>Arguments:</strong></p>
+
+<table>
+<tr><th>Argument</th><th>Description</th></tr>
+<tr><td><code>directory</code></td><td>Target directory name. Created if it does not exist. Defaults to <code>.</code> (current directory).</td></tr>
+</table>
+
+<p><strong>Flags:</strong></p>
+
+<table>
+<tr><th>Flag</th><th>Short</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>--language</code></td><td><code>-l</code></td><td><code>typescript</code></td><td>SDK language. Supported: <code>typescript</code>. Coming soon: <code>python</code>, <code>go</code>, <code>java</code>.</td></tr>
+</table>
+
+<p><strong>Examples:</strong></p>
+
+<pre><code class="language-bash">
+# Create a TypeScript project
+osdctl init --language typescript my-dashboards
+
+# Create in the current directory
+osdctl init .
+
+# Shorthand
+osdctl init -l typescript my-project
+</code></pre>
+
+<p><strong>Generated structure:</strong></p>
+
+<pre><code class="language-">
+my-dashboards/
+  package.json            # npm project with build/validate/apply scripts
+  tsconfig.json           # TypeScript configuration
+  .osdctl.yaml            # CLI config with dev/staging/prod profiles
+  .gitignore              # Ignores built/, node_modules/
+  src/
+    dashboards/
+      example.ts          # Example dashboard source
+      example.json        # Example dashboard JSON
+  built/                  # Build output directory
+</code></pre>
+
+<hr>
+
+<h3><code>osdctl build</code></h3>
+
+<p>Compile SDK source files (TypeScript) into JSON or YAML dashboard definitions.</p>
+
+<p><strong>Usage:</strong></p>
+
+<pre><code class="language-bash">
+osdctl build [options]
+</code></pre>
+
+<p><strong>Flags:</strong></p>
+
+<table>
+<tr><th>Flag</th><th>Short</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>-f</code></td><td>Build a single source file</td></tr>
+<tr><td><code>-d</code></td><td>Build all source files in a directory</td></tr>
+<tr><td><code>-o</code></td><td><code>yaml</code></td><td>Output format: <code>json</code> or <code>yaml</code></td></tr>
+<tr><td><code>--output-dir</code></td><td><code>./built</code></td><td>Directory for built output files</td></tr>
+<tr><td><code>--stdout</code></td><td><code>false</code></td><td>Print output to stdout instead of writing files</td></tr>
+</table>
+
+<p><strong>Examples:</strong></p>
+
+<pre><code class="language-bash">
+# Build a single file to YAML
+osdctl build -f src/dashboards/cpu-monitoring.ts
+
+# Build a single file to JSON
+osdctl build -f src/dashboards/cpu-monitoring.ts -o json
+
+# Build all files in a directory
+osdctl build -d src/dashboards/
+
+# Build to a custom output directory
+osdctl build -d src/dashboards/ --output-dir ./dist
+
+# Preview output without writing files
+osdctl build -f src/dashboards/cpu-monitoring.ts --stdout
+
+# Build using npm script (configured by init)
+npm run build
+</code></pre>
+
+<p><strong>How it works:</strong></p>
+
+<ol>
+<li>Detects the language from the file extension or project config.</li>
+<li>Executes the source file (e.g., via <code>npx tsx</code> for TypeScript).</li>
+<li>Captures the SDK output (JSON/YAML files written by <code>toJSON()</code>/<code>toYAML()</code> calls).</li>
+<li>Writes results to the output directory (one file per dashboard).</li>
+</ol>
+
+<hr>
+
+<h3><code>osdctl validate</code></h3>
+
+<p>Validate dashboard definitions against the JSON Schema.</p>
+
+<p><strong>Usage:</strong></p>
+
+<pre><code class="language-bash">
+osdctl validate [options]
+</code></pre>
+
+<p><strong>Flags:</strong></p>
+
+<table>
+<tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>--input-dir</code></td><td><code>./built</code></td><td>Directory containing dashboard definitions to validate</td></tr>
+<tr><td><code>--server</code></td><td><code>false</code></td><td>Enable server-side validation (checks data sources, plugins, index patterns)</td></tr>
+<tr><td><code>--profile</code></td><td>default profile</td><td>Connection profile for server-side validation</td></tr>
+</table>
+
+<p><strong>Examples:</strong></p>
+
+<pre><code class="language-bash">
+# Local-only validation (no server needed)
+osdctl validate
+
+# Validate a specific directory
+osdctl validate --input-dir ./dist
+
+# Server-side validation (full checks)
+osdctl validate --server --profile staging
+</code></pre>
+
+<p><strong>Output:</strong></p>
+
+<pre><code class="language-">
+Validating 5 dashboards...
+  cpu-monitoring.yaml          VALID
+  memory-overview.yaml         VALID
+  disk-usage.yaml              ERROR  panelsJSON[2].gridData.w must be &gt;= 1
+  network-traffic.yaml         VALID
+  application-errors.yaml      VALID
+
+4/5 valid, 1 error
+</code></pre>
+
+<p><strong>Validation modes:</strong></p>
+
+<table>
+<tr><th>Mode</th><th>Server Required</th><th>Checks</th></tr>
+<tr><td>Local (default)</td><td>No</td><td>JSON Schema conformance, required fields, type correctness, grid position validity</td></tr>
+<tr><td>Server (<code>--server</code>)</td><td>Yes</td><td>All local checks plus: data source existence, index pattern validity, plugin availability</td></tr>
+</table>
+
+<p><strong>Exit codes:</strong></p>
+
+<table>
+<tr><th>Code</th><th>Meaning</th></tr>
+<tr><td><code>0</code></td><td>All definitions valid</td></tr>
+<tr><td><code>1</code></td><td>One or more validation errors</td></tr>
+</table>
+
+<hr>
+
+<h3><code>osdctl diff</code></h3>
+
+<p>Compare local dashboard definitions against the deployed state on a running OpenSearch Dashboards instance.</p>
+
+<p><strong>Usage:</strong></p>
+
+<pre><code class="language-bash">
+osdctl diff [options]
+</code></pre>
+
+<p><strong>Flags:</strong></p>
+
+<table>
+<tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>--input-dir</code></td><td><code>./built</code></td><td>Directory containing local definitions</td></tr>
+<tr><td><code>--output-dir</code></td><td>Write <code>.diff</code> files to this directory</td></tr>
+<tr><td><code>--profile</code></td><td>default profile</td><td>Connection profile</td></tr>
+</table>
+
+<p><strong>Examples:</strong></p>
+
+<pre><code class="language-bash">
+# Diff against dev
+osdctl diff --profile dev
+
+# Diff against production
+osdctl diff --profile prod
+
+# Save diff output to files
+osdctl diff --profile prod --output-dir ./diffs
+</code></pre>
+
+<p><strong>Output:</strong></p>
+
+<pre><code class="language-">
+Comparing 5 dashboards against prod...
+
+  cpu-monitoring               UPDATED
+    ~ title: "CPU Metrics" -&gt; "CPU Monitoring"
+    + panels[3]: new panel "cpu-p99-latency"
+
+  memory-overview              UNCHANGED
+  disk-usage                   NEW
+  network-traffic              UPDATED
+    ~ refreshInterval: "1m" -&gt; "30s"
+  application-errors           UNCHANGED
+
+2 updated, 1 new, 2 unchanged
+</code></pre>
+
+<p><strong>Status values:</strong></p>
+
+<table>
+<tr><th>Status</th><th>Meaning</th></tr>
+<tr><td><code>NEW</code></td><td>Dashboard does not exist on the server</td></tr>
+<tr><td><code>UPDATED</code></td><td>Dashboard exists but has differences</td></tr>
+<tr><td><code>UNCHANGED</code></td><td>Dashboard is identical to the deployed version</td></tr>
+<tr><td><code>ERROR</code></td><td>Could not compare (e.g., permission denied)</td></tr>
+</table>
+
+<p><strong>How it works:</strong> For each local definition, <code>osdctl diff</code> calls <code>POST /api/saved_objects/_diff</code> on the server, which performs a structured comparison and returns the specific fields that changed.</p>
+
+<hr>
+
+<h3><code>osdctl apply</code></h3>
+
+<p>Deploy dashboard definitions to a running OpenSearch Dashboards instance.</p>
+
+<p><strong>Usage:</strong></p>
+
+<pre><code class="language-bash">
+osdctl apply [options]
+</code></pre>
+
+<p><strong>Flags:</strong></p>
+
+<table>
+<tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>--input-dir</code></td><td><code>./built</code></td><td>Directory containing definitions to deploy</td></tr>
+<tr><td><code>--dry-run</code></td><td><code>false</code></td><td>Preview changes without applying</td></tr>
+<tr><td><code>--confirm</code></td><td><code>false</code></td><td>Prompt for confirmation before applying</td></tr>
+<tr><td><code>--profile</code></td><td>default profile</td><td>Connection profile</td></tr>
+</table>
+
+<p><strong>Examples:</strong></p>
+
+<pre><code class="language-bash">
+# Dry-run: see what would change
+osdctl apply --dry-run --profile prod
+
+# Apply to development
+osdctl apply --profile dev
+
+# Apply to production with confirmation
+osdctl apply --profile prod --confirm
+
+# Apply using environment variables (useful in CI)
+OSD_URL=https://dashboards.company.com OSD_TOKEN=$TOKEN osdctl apply
+</code></pre>
+
+<p><strong>Output:</strong></p>
+
+<pre><code class="language-">
+Applying 5 dashboards to prod...
+  cpu-monitoring               UPDATED  (v5 -&gt; v6)
+  memory-overview              UNCHANGED
+  disk-usage                   CREATED  (v1)
+  network-traffic              UPDATED  (v3 -&gt; v4)
+  application-errors           UNCHANGED
+
+3 changes applied, 2 unchanged
+</code></pre>
+
+<p><strong>How it works:</strong></p>
+
+<ol>
+<li>Reads all definitions from the input directory.</li>
+<li>Calls <code>POST /api/saved_objects/_bulk_apply</code> with all resources.</li>
+<li>Uses optimistic concurrency (<code>If-Match</code> header) to prevent overwriting concurrent changes.</li>
+<li>Automatically stamps <code>managed-by: osdctl</code> label and <code>last-applied-hash</code> annotation on all applied objects.</li>
+<li>Reports per-resource status: <code>CREATED</code>, <code>UPDATED</code>, <code>UNCHANGED</code>, or <code>ERROR</code>.</li>
+</ol>
+
+<p><strong>Dry-run mode</strong> (<code>--dry-run</code>): Sends the request with <code>dryRun: true</code>. The server validates all resources and reports what would change without persisting anything. If any resource fails validation, the entire batch is rejected.</p>
+
+<hr>
+
+<h3><code>osdctl pull</code></h3>
+
+<p>Export dashboards from a running instance to local files.</p>
+
+<p><strong>Usage:</strong></p>
+
+<pre><code class="language-bash">
+osdctl pull [options]
+</code></pre>
+
+<p><strong>Flags:</strong></p>
+
+<table>
+<tr><th>Flag</th><th>Short</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>--output-dir</code></td><td><code>./pulled</code></td><td>Directory to write pulled definitions</td></tr>
+<tr><td><code>-o</code></td><td><code>yaml</code></td><td>Output format: <code>json</code> or <code>yaml</code></td></tr>
+<tr><td><code>--label</code></td><td>Filter by labels (format: <code>key=value,key2=value2</code>)</td></tr>
+<tr><td><code>--profile</code></td><td>default profile</td><td>Connection profile</td></tr>
+</table>
+
+<p><strong>Examples:</strong></p>
+
+<pre><code class="language-bash">
+# Pull all dashboards from production
+osdctl pull --profile prod
+
+# Pull as JSON
+osdctl pull --profile prod -o json
+
+# Pull only dashboards for a specific team
+osdctl pull --profile prod --label team=platform
+
+# Pull only dashboards managed by osdctl
+osdctl pull --profile prod --label managed-by=osdctl
+
+# Pull to a specific directory
+osdctl pull --profile prod --output-dir ./exported
+</code></pre>
+
+<p><strong>Output:</strong></p>
+
+<pre><code class="language-">
+Pulling dashboards from prod...
+  Wrote pulled/cpu-monitoring.yaml
+  Wrote pulled/memory-overview.yaml
+  Wrote pulled/disk-usage.yaml
+  Wrote pulled/network-traffic.yaml
+
+4 dashboards pulled
+</code></pre>
+
+<p><strong>How it works:</strong></p>
+
+<ol>
+<li>Calls <code>GET /api/saved_objects/_export_clean</code> to retrieve dashboards in the clean, deterministic format.</li>
+<li>Writes one file per dashboard.</li>
+<li>Label filtering uses the server-side <code>_find</code> endpoint with label query parameters.</li>
+</ol>
+
+<hr>
+
+<h3><code>osdctl lint</code></h3>
+
+<p>Check dashboard definitions against organizational policies and best practices.</p>
+
+<p><strong>Usage:</strong></p>
+
+<pre><code class="language-bash">
+osdctl lint [options]
+</code></pre>
+
+<p><strong>Flags:</strong></p>
+
+<table>
+<tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>--input-dir</code></td><td><code>./built</code></td><td>Directory containing definitions to lint</td></tr>
+</table>
+
+<p><strong>Examples:</strong></p>
+
+<pre><code class="language-bash">
+# Lint all built dashboards
+osdctl lint
+
+# Lint a specific directory
+osdctl lint --input-dir ./pulled
+</code></pre>
+
+<p><strong>Output:</strong></p>
+
+<pre><code class="language-">
+Linting 5 dashboards...
+  cpu-monitoring.yaml
+    WARN  no "owner" annotation set
+    WARN  no description provided
+  disk-usage.yaml
+    ERROR missing required label "env"
+  memory-overview.yaml         OK
+  network-traffic.yaml         OK
+  application-errors.yaml      OK
+
+2 warnings, 1 error
+</code></pre>
+
+<p><strong>Lint rules</strong> are configured in <code>.osdctl.yaml</code>:</p>
+
+<pre><code class="language-yaml">
+lint:
+  # Require these labels on all dashboards
+  require-labels:
+    - env
+    - team
+
+  # Require these annotations
+  require-annotations:
+    - owner
+
+  # Require a non-empty description (warn or error)
+  require-description: warn
+
+  # Maximum panels per dashboard
+  max-panels: 30
+
+  # Dashboard name format (kebab-case, snake_case, or camelCase)
+  naming-convention: kebab-case
+
+  # Allowed data source name patterns
+  allowed-data-sources:
+    - "metrics-*"
+    - "logs-*"
+    - "traces-*"
+</code></pre>
+
+<p><strong>Built-in rules:</strong></p>
+
+<table>
+<tr><th>Rule</th><th>Severity</th><th>Description</th></tr>
+<tr><td><code>require-labels</code></td><td>error</td><td>Specified labels must be present</td></tr>
+<tr><td><code>require-annotations</code></td><td>error</td><td>Specified annotations must be present</td></tr>
+<tr><td><code>require-description</code></td><td>configurable</td><td>Dashboard must have a non-empty description</td></tr>
+<tr><td><code>max-panels</code></td><td>error</td><td>Dashboard must not exceed the panel limit</td></tr>
+<tr><td><code>naming-convention</code></td><td>error</td><td>Dashboard name must match the pattern</td></tr>
+<tr><td><code>allowed-data-sources</code></td><td>error</td><td>Data source names must match allowed patterns</td></tr>
+<tr><td><code>no-duplicate-panel-names</code></td><td>error</td><td>Panel names must be unique within a dashboard</td></tr>
+<tr><td><code>valid-grid-positions</code></td><td>error</td><td>Panel positions must not overlap or exceed grid bounds</td></tr>
+</table>
+
+<hr>
+
+<h3><code>osdctl preview</code></h3>
+
+<p>Create an ephemeral dashboard on a running instance for testing purposes.</p>
+
+<p><strong>Usage:</strong></p>
+
+<pre><code class="language-bash">
+osdctl preview [options]
+</code></pre>
+
+<p><strong>Flags:</strong></p>
+
+<table>
+<tr><th>Flag</th><th>Short</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>-f</code></td><td>Dashboard definition file to preview</td></tr>
+<tr><td><code>--profile</code></td><td>default profile</td><td>Connection profile</td></tr>
+<tr><td><code>--ttl</code></td><td><code>1h</code></td><td>Time-to-live for the ephemeral dashboard</td></tr>
+</table>
+
+<p><strong>Examples:</strong></p>
+
+<pre><code class="language-bash">
+# Preview a dashboard on dev
+osdctl preview -f built/cpu-monitoring.yaml --profile dev
+</code></pre>
+
+<p><strong>Output:</strong></p>
+
+<pre><code class="language-">
+Preview dashboard created at:
+  https://dashboards-dev.internal:5601/app/dashboards#/preview/tmp-abc123
+
+Preview expires in 1 hour. Press Ctrl+C to delete early.
+</code></pre>
+
+<blockquote><p>Note: The <code>preview</code> command is currently in development. See the <a href="/index">roadmap</a> for availability.</p></blockquote>
+
+<hr>
+
+<h2>Multi-Environment Workflow</h2>
+
+<p>A typical DaC workflow promotes dashboards across environments using profiles.</p>
+
+<h3>Development</h3>
+
+<pre><code class="language-bash">
+# Build and deploy to dev frequently
+osdctl build -d src/dashboards/
+osdctl apply --profile dev
+</code></pre>
+
+<h3>Staging (from CI on PR merge to a staging branch)</h3>
+
+<pre><code class="language-bash">
+osdctl build -d src/dashboards/
+osdctl validate --server --profile staging
+osdctl diff --profile staging
+osdctl apply --profile staging
+</code></pre>
+
+<h3>Production (from CI on merge to main)</h3>
+
+<pre><code class="language-bash">
+osdctl build -d src/dashboards/
+osdctl validate --server --profile prod
+osdctl diff --profile prod
+osdctl apply --profile prod --confirm
+</code></pre>
+
+<p>See the <a href="/ci-cd-guide">CI/CD Integration Guide</a> for complete pipeline configurations.</p>
+
+<hr>
+
+<h2>Related Documentation</h2>
+
+<ul>
+<li><a href="/getting-started">Getting Started</a> -- End-to-end walkthrough</li>
+<li><a href="/sdk-reference">SDK Reference</a> -- TypeScript builder API</li>
+<li><a href="/api-reference">API Reference</a> -- Server-side REST endpoints</li>
+<li><a href="/ci-cd-guide">CI/CD Integration Guide</a> -- Automated pipeline workflows</li>
+</ul>
+
+</body>
+</html>

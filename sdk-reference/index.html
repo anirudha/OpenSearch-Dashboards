@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sdk Reference - Dashboards-as-Code</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 980px; margin: 0 auto; padding: 40px 20px; color: #1f2328; line-height: 1.6; background: #fff; }
+h1 { font-size: 2em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; margin-top: 1.5em; }
+h3 { font-size: 1.25em; margin-top: 1.5em; }
+code { background: #eff1f3; padding: 0.2em 0.4em; border-radius: 6px; font-size: 85%; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace; }
+pre { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; overflow-x: auto; }
+pre code { background: none; padding: 0; font-size: 85%; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+th, td { border: 1px solid #d1d9e0; padding: 6px 13px; text-align: left; }
+th { background: #f6f8fa; font-weight: 600; }
+tr:nth-child(2n) { background: #f6f8fa; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+blockquote { border-left: 4px solid #d1d9e0; color: #656d76; margin: 16px 0; padding: 0 16px; }
+hr { border: none; border-top: 1px solid #d1d9e0; margin: 24px 0; }
+nav { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; margin-bottom: 32px; }
+nav a { display: inline-block; margin: 4px 12px 4px 0; }
+.nav-current { font-weight: 700; color: #1f2328; }
+ul, ol { padding-left: 2em; }
+li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<nav><a href="/">Overview</a> | <a href="/getting-started">Getting Started</a> | <a href="/sdk-reference" class="nav-current">SDK Reference</a> | <a href="/cli-reference">CLI Reference</a> | <a href="/api-reference">API Reference</a> | <a href="/ci-cd-guide">CI/CD Guide</a> | <a href="/migration-guide">Migration Guide</a> | <a href="/cookbook">Cookbook</a></nav>
+<h1>TypeScript SDK Reference</h1>
+
+<p>The <code>@opensearch-dashboards/sdk</code> package provides strongly-typed, fluent builders for defining OpenSearch Dashboards resources as code. Definitions compile to JSON or YAML files suitable for version control and deployment via <code>osdctl apply</code>.</p>
+
+<h2>Installation</h2>
+
+<pre><code class="language-bash">
+npm install @opensearch-dashboards/sdk
+</code></pre>
+
+<p>The SDK requires TypeScript 4.7 or later (or plain JavaScript with ES2020+ support).</p>
+
+<h2>Imports</h2>
+
+<pre><code class="language-typescript">
+import {
+  Dashboard,
+  Panel,
+  Query,
+  DataSource,
+  Variable,
+} from '@opensearch-dashboards/sdk';
+</code></pre>
+
+<hr>
+
+<h2>Dashboard Builder</h2>
+
+<p>The <code>Dashboard</code> class is the top-level builder. It produces a <code>DashboardDefinition</code> with the <code>dashboards.opensearch.org/v1alpha1</code> API version.</p>
+
+<h3>Creating a Dashboard</h3>
+
+<pre><code class="language-typescript">
+const dashboard = Dashboard.create('my-dashboard-name');
+</code></pre>
+
+<p>The <code>name</code> is the unique resource identifier. It must be a stable, URL-safe string (kebab-case recommended). This becomes the saved object ID.</p>
+
+<h3>Methods</h3>
+
+<table>
+<tr><th>Method</th><th>Signature</th><th>Description</th></tr>
+<tr><td><code>create</code></td><td><code>static create(name: string): Dashboard</code></td><td>Factory method. Creates a new builder instance.</td></tr>
+<tr><td><code>title</code></td><td><code>title(title: string): Dashboard</code></td><td>Sets the display title shown in the UI.</td></tr>
+<tr><td><code>description</code></td><td><code>description(desc: string): Dashboard</code></td><td>Sets the dashboard description.</td></tr>
+<tr><td><code>labels</code></td><td><code>labels(labels: Record&lt;string, string&gt;): Dashboard</code></td><td>Sets metadata labels for filtering and organization. Merges with existing labels.</td></tr>
+<tr><td><code>annotation</code></td><td><code>annotation(key: string, value: string): Dashboard</code></td><td>Adds a single annotation (free-form metadata).</td></tr>
+<tr><td><code>timeRange</code></td><td><code>timeRange(from: string, to: string): Dashboard</code></td><td>Sets the default time range (e.g., <code>'now-1h'</code>, <code>'now'</code>).</td></tr>
+<tr><td><code>refreshInterval</code></td><td><code>refreshInterval(interval: string): Dashboard</code></td><td>Sets the auto-refresh interval (e.g., <code>'30s'</code>, <code>'1m'</code>, <code>'5m'</code>).</td></tr>
+<tr><td><code>addPanel</code></td><td><code>addPanel(panel: Panel): Dashboard</code></td><td>Adds a panel to the dashboard.</td></tr>
+<tr><td><code>addDataSource</code></td><td><code>addDataSource(dataSource: DataSource): Dashboard</code></td><td>Adds a data source reference.</td></tr>
+<tr><td><code>addVariable</code></td><td><code>addVariable(variable: Variable): Dashboard</code></td><td>Adds a template variable.</td></tr>
+<tr><td><code>build</code></td><td><code>build(): DashboardDefinition</code></td><td>Compiles and returns the full definition object.</td></tr>
+<tr><td><code>toJSON</code></td><td><code>toJSON(filepath?: string): string</code></td><td>Serializes to JSON. If <code>filepath</code> is provided, writes to file. Returns the JSON string.</td></tr>
+<tr><td><code>toYAML</code></td><td><code>toYAML(filepath?: string): string</code></td><td>Serializes to YAML. If <code>filepath</code> is provided, writes to file. Returns the YAML string.</td></tr>
+</table>
+
+<h3>Example</h3>
+
+<pre><code class="language-typescript">
+const dashboard = Dashboard.create('web-traffic')
+  .title('Web Traffic Overview')
+  .description('HTTP request metrics for all web servers')
+  .labels({ env: 'production', team: 'platform', tier: 'frontend' })
+  .annotation('owner', 'platform-team@company.com')
+  .annotation('source-repo', 'github.com/acme/dashboards')
+  .timeRange('now-6h', 'now')
+  .refreshInterval('1m')
+  .addVariable(
+    Variable.create('cluster')
+      .type('custom')
+      .label('Cluster')
+      .options(['us-east-1', 'us-west-2', 'eu-west-1'])
+      .defaultValue('us-east-1')
+  )
+  .addPanel(
+    Panel.create('total-requests')
+      .visualization('metric')
+      .gridPosition({ x: 0, y: 0, w: 8, h: 6 })
+      .query(Query.ppl("source = access_logs | stats count() as total"))
+  )
+  .addDataSource(
+    DataSource.create('logs-cluster').type('opensearch').default(true)
+  );
+
+// Write to file
+dashboard.toYAML('built/web-traffic.yaml');
+</code></pre>
+
+<h3>Output Structure</h3>
+
+<p>The <code>build()</code> method returns a <code>DashboardDefinition</code> with this shape:</p>
+
+<pre><code class="language-typescript">
+interface DashboardDefinition {
+  apiVersion: string;          // 'dashboards.opensearch.org/v1alpha1'
+  kind: string;                // 'Dashboard'
+  metadata: {
+    name: string;              // Resource identifier
+    labels: Record&lt;string, string&gt;;
+    annotations: Record&lt;string, string&gt;;
+  };
+  spec: {
+    title: string;
+    description: string;
+    timeRange?: { from: string; to: string };
+    refreshInterval?: string;
+    panels: PanelDefinition[];
+    dataSources: DataSourceDefinition[];
+    variables: VariableDefinition[];
+  };
+}
+</code></pre>
+
+<hr>
+
+<h2>Panel Builder</h2>
+
+<p>The <code>Panel</code> class builds individual visualization panels within a dashboard.</p>
+
+<h3>Creating a Panel</h3>
+
+<pre><code class="language-typescript">
+const panel = Panel.create('my-panel-name');
+</code></pre>
+
+<p>The <code>name</code> is a unique identifier within the dashboard.</p>
+
+<h3>Methods</h3>
+
+<table>
+<tr><th>Method</th><th>Signature</th><th>Description</th></tr>
+<tr><td><code>create</code></td><td><code>static create(name: string): Panel</code></td><td>Factory method. Creates a new panel builder.</td></tr>
+<tr><td><code>visualization</code></td><td><code>visualization(type: VisualizationType): Panel</code></td><td>Sets the visualization type. Default: <code>'line'</code>.</td></tr>
+<tr><td><code>gridPosition</code></td><td><code>gridPosition(pos: GridPosition): Panel</code></td><td>Sets the panel position and size in the grid layout.</td></tr>
+<tr><td><code>query</code></td><td><code>query(q: Query): Panel</code></td><td>Sets the data query for this panel.</td></tr>
+<tr><td><code>option</code></td><td><code>option(key: string, value: unknown): Panel</code></td><td>Sets a visualization-specific option.</td></tr>
+<tr><td><code>build</code></td><td><code>build(): PanelDefinition</code></td><td>Compiles and returns the panel definition.</td></tr>
+</table>
+
+<h3>Visualization Types</h3>
+
+<p>The <code>VisualizationType</code> union supports:</p>
+
+<table>
+<tr><th>Type</th><th>Description</th></tr>
+<tr><td><code>'line'</code></td><td>Line chart for time-series data</td></tr>
+<tr><td><code>'bar'</code></td><td>Bar chart for categorical comparisons</td></tr>
+<tr><td><code>'area'</code></td><td>Area chart (filled line chart)</td></tr>
+<tr><td><code>'pie'</code></td><td>Pie or donut chart</td></tr>
+<tr><td><code>'heatmap'</code></td><td>Heatmap for density visualization</td></tr>
+<tr><td><code>'table'</code></td><td>Tabular data display</td></tr>
+<tr><td><code>'metric'</code></td><td>Single-value metric display</td></tr>
+<tr><td><code>'gauge'</code></td><td>Gauge chart for threshold visualization</td></tr>
+<tr><td><code>'markdown'</code></td><td>Static markdown content panel</td></tr>
+</table>
+
+<h3>Grid Position</h3>
+
+<p>The dashboard uses a 48-column grid layout. Each panel has:</p>
+
+<table>
+<tr><th>Property</th><th>Type</th><th>Description</th></tr>
+<tr><td><code>x</code></td><td><code>number</code></td><td>Horizontal position (0-47)</td></tr>
+<tr><td><code>y</code></td><td><code>number</code></td><td>Vertical position (rows from top)</td></tr>
+<tr><td><code>w</code></td><td><code>number</code></td><td>Width in grid columns (1-48)</td></tr>
+<tr><td><code>h</code></td><td><code>number</code></td><td>Height in grid rows</td></tr>
+</table>
+
+<p>Default grid position is <code>{ x: 0, y: 0, w: 12, h: 8 }</code>.</p>
+
+<h3>Panel Examples</h3>
+
+<p><strong>Line chart:</strong></p>
+
+<pre><code class="language-typescript">
+Panel.create('cpu-usage')
+  .visualization('line')
+  .gridPosition({ x: 0, y: 0, w: 24, h: 12 })
+  .query(Query.ppl("source = metrics | stats avg(cpu_percent) by span(timestamp, 1m), host"))
+  .option('showLegend', true)
+  .option('legendPosition', 'bottom')
+  .option('yAxisLabel', 'CPU %')
+</code></pre>
+
+<p><strong>Metric (single value):</strong></p>
+
+<pre><code class="language-typescript">
+Panel.create('active-users')
+  .visualization('metric')
+  .gridPosition({ x: 0, y: 0, w: 8, h: 6 })
+  .query(Query.ppl("source = sessions | where status = 'active' | stats dc(user_id) as active_users"))
+  .option('fontSize', 'large')
+  .option('colorMode', 'background')
+</code></pre>
+
+<p><strong>Table:</strong></p>
+
+<pre><code class="language-typescript">
+Panel.create('top-errors')
+  .visualization('table')
+  .gridPosition({ x: 0, y: 12, w: 24, h: 10 })
+  .query(
+    Query.sql("SELECT error_message, COUNT(*) as count FROM app_logs WHERE level = 'ERROR' GROUP BY error_message ORDER BY count DESC LIMIT 25")
+  )
+  .option('showPagination', true)
+  .option('perPage', 10)
+</code></pre>
+
+<p><strong>Bar chart:</strong></p>
+
+<pre><code class="language-typescript">
+Panel.create('requests-by-method')
+  .visualization('bar')
+  .gridPosition({ x: 0, y: 0, w: 12, h: 10 })
+  .query(Query.ppl("source = access_logs | stats count() as requests by method"))
+  .option('orientation', 'horizontal')
+</code></pre>
+
+<p><strong>Gauge:</strong></p>
+
+<pre><code class="language-typescript">
+Panel.create('disk-usage')
+  .visualization('gauge')
+  .gridPosition({ x: 0, y: 0, w: 8, h: 8 })
+  .query(Query.ppl("source = metrics | stats avg(disk_used_percent) as usage"))
+  .option('min', 0)
+  .option('max', 100)
+  .option('thresholds', [
+    { value: 0, color: 'green' },
+    { value: 70, color: 'yellow' },
+    { value: 90, color: 'red' },
+  ])
+</code></pre>
+
+<p><strong>Heatmap:</strong></p>
+
+<pre><code class="language-typescript">
+Panel.create('latency-heatmap')
+  .visualization('heatmap')
+  .gridPosition({ x: 0, y: 0, w: 24, h: 12 })
+  .query(Query.ppl("source = metrics | stats count() by span(timestamp, 5m), span(latency_ms, 50)"))
+  .option('colorScheme', 'blues')
+</code></pre>
+
+<p><strong>Pie chart:</strong></p>
+
+<pre><code class="language-typescript">
+Panel.create('traffic-by-region')
+  .visualization('pie')
+  .gridPosition({ x: 12, y: 0, w: 12, h: 10 })
+  .query(Query.ppl("source = access_logs | stats count() as requests by region"))
+  .option('donut', true)
+  .option('showLabels', true)
+</code></pre>
+
+<p><strong>Markdown (static content):</strong></p>
+
+<pre><code class="language-typescript">
+Panel.create('header')
+  .visualization('markdown')
+  .gridPosition({ x: 0, y: 0, w: 48, h: 4 })
+  .option('content', '## System Health Dashboard\nLast updated: auto-refresh every 30s')
+</code></pre>
+
+<hr>
+
+<h2>Query Builder</h2>
+
+<p>The <code>Query</code> class provides static factory methods for each supported query language.</p>
+
+<h3>Factory Methods</h3>
+
+<table>
+<tr><th>Method</th><th>Signature</th><th>Description</th></tr>
+<tr><td><code>Query.ppl</code></td><td><code>static ppl(query: string): Query</code></td><td>Creates a PPL (Piped Processing Language) query.</td></tr>
+<tr><td><code>Query.dql</code></td><td><code>static dql(query: string): Query</code></td><td>Creates a DQL (Dashboards Query Language) query.</td></tr>
+<tr><td><code>Query.sql</code></td><td><code>static sql(query: string): Query</code></td><td>Creates a SQL query.</td></tr>
+<tr><td><code>Query.lucene</code></td><td><code>static lucene(query: string): Query</code></td><td>Creates a Lucene query.</td></tr>
+</table>
+
+<p>All factory methods throw an error if the query string is empty or whitespace-only.</p>
+
+<p>The <code>build()</code> method returns a <code>QueryDefinition</code>:</p>
+
+<pre><code class="language-typescript">
+interface QueryDefinition {
+  language: 'PPL' | 'DQL' | 'SQL' | 'Lucene';
+  query: string;
+}
+</code></pre>
+
+<h3>PPL Examples</h3>
+
+<p>PPL (Piped Processing Language) is OpenSearch's native pipeline query language:</p>
+
+<pre><code class="language-typescript">
+// Basic aggregation
+Query.ppl("source = metrics | stats avg(cpu_percent) by host")
+
+// Time-series with bucketing
+Query.ppl("source = metrics | stats avg(value) by span(timestamp, 5m)")
+
+// Filtering and sorting
+Query.ppl("source = logs | where level = 'ERROR' | sort - timestamp | head 100")
+
+// Multiple aggregations
+Query.ppl("source = web_logs | stats count() as total, avg(latency_ms) as avg_lat, p99(latency_ms) as p99_lat by endpoint")
+
+// Using variables (template variable substitution)
+Query.ppl("source = metrics | where host = '$host' and cluster = '$cluster' | stats avg(cpu) by span(timestamp, 1m)")
+</code></pre>
+
+<h3>DQL Examples</h3>
+
+<p>DQL (Dashboards Query Language) is the search-bar query syntax:</p>
+
+<pre><code class="language-typescript">
+// Simple field match
+Query.dql("status:200")
+
+// Boolean operators
+Query.dql("level:error AND service:payment-api")
+
+// Wildcard
+Query.dql("host:web-*")
+
+// Range
+Query.dql("response_time &gt; 500")
+
+// Nested fields
+Query.dql("kubernetes.pod.name:api-server-*")
+</code></pre>
+
+<h3>SQL Examples</h3>
+
+<pre><code class="language-typescript">
+// Standard SQL aggregation
+Query.sql("SELECT host, AVG(cpu_percent) as avg_cpu FROM metrics GROUP BY host ORDER BY avg_cpu DESC")
+
+// Join across indices
+Query.sql("SELECT a.endpoint, a.avg_latency, b.error_count FROM (SELECT endpoint, AVG(latency) as avg_latency FROM access_logs GROUP BY endpoint) a LEFT JOIN (SELECT endpoint, COUNT(*) as error_count FROM error_logs GROUP BY endpoint) b ON a.endpoint = b.endpoint")
+
+// Window functions
+Query.sql("SELECT host, cpu_percent, timestamp, AVG(cpu_percent) OVER (PARTITION BY host ORDER BY timestamp ROWS BETWEEN 5 PRECEDING AND CURRENT ROW) as moving_avg FROM metrics")
+</code></pre>
+
+<h3>Lucene Examples</h3>
+
+<pre><code class="language-typescript">
+// Full-text search
+Query.lucene("connection refused")
+
+// Field-specific search
+Query.lucene("message:\"out of memory\" AND level:ERROR")
+
+// Regex
+Query.lucene("host:/web-[0-9]+/")
+
+// Fuzzy search
+Query.lucene("message:errror~2")
+</code></pre>
+
+<hr>
+
+<h2>DataSource Builder</h2>
+
+<p>The <code>DataSource</code> class configures data source references for a dashboard.</p>
+
+<h3>Methods</h3>
+
+<table>
+<tr><th>Method</th><th>Signature</th><th>Description</th></tr>
+<tr><td><code>create</code></td><td><code>static create(name: string): DataSource</code></td><td>Factory method.</td></tr>
+<tr><td><code>type</code></td><td><code>type(type: string): DataSource</code></td><td>Sets the data source type. Default: <code>'opensearch'</code>.</td></tr>
+<tr><td><code>default</code></td><td><code>default(isDefault?: boolean): DataSource</code></td><td>Marks as the default data source. Default: <code>false</code>.</td></tr>
+<tr><td><code>build</code></td><td><code>build(): DataSourceDefinition</code></td><td>Compiles the definition.</td></tr>
+</table>
+
+<h3>Example</h3>
+
+<pre><code class="language-typescript">
+// Default OpenSearch cluster
+DataSource.create('primary-cluster')
+  .type('opensearch')
+  .default(true)
+
+// Secondary cluster
+DataSource.create('archive-cluster')
+  .type('opensearch')
+
+// Prometheus data source
+DataSource.create('prometheus')
+  .type('prometheus')
+</code></pre>
+
+<hr>
+
+<h2>Variable Builder</h2>
+
+<p>The <code>Variable</code> class defines template variables that enable interactive filtering in dashboards.</p>
+
+<h3>Methods</h3>
+
+<table>
+<tr><th>Method</th><th>Signature</th><th>Description</th></tr>
+<tr><td><code>create</code></td><td><code>static create(name: string): Variable</code></td><td>Factory method.</td></tr>
+<tr><td><code>type</code></td><td>`type(type: 'query' \</td><td>'custom' \</td><td>'constant' \</td><td>'interval'): Variable`</td><td>Sets the variable type. Default: <code>'custom'</code>.</td></tr>
+<tr><td><code>label</code></td><td><code>label(label: string): Variable</code></td><td>Sets the display label shown in the UI dropdown.</td></tr>
+<tr><td><code>description</code></td><td><code>description(desc: string): Variable</code></td><td>Sets a tooltip description.</td></tr>
+<tr><td><code>query</code></td><td><code>query(query: string): Variable</code></td><td>Sets the query used to populate options (for <code>query</code> type).</td></tr>
+<tr><td><code>options</code></td><td><code>options(options: string[]): Variable</code></td><td>Sets static options (for <code>custom</code> type).</td></tr>
+<tr><td><code>defaultValue</code></td><td><code>defaultValue(value: string): Variable</code></td><td>Sets the default selected value.</td></tr>
+<tr><td><code>multi</code></td><td><code>multi(multi?: boolean): Variable</code></td><td>Allows multiple selections. Default: <code>false</code>.</td></tr>
+<tr><td><code>build</code></td><td><code>build(): VariableDefinition</code></td><td>Compiles the definition.</td></tr>
+</table>
+
+<h3>Variable Types</h3>
+
+<table>
+<tr><th>Type</th><th>Description</th><th>Key Config</th></tr>
+<tr><td><code>'query'</code></td><td>Options populated dynamically from a query</td><td>Use <code>.query()</code></td></tr>
+<tr><td><code>'custom'</code></td><td>Static list of options</td><td>Use <code>.options()</code></td></tr>
+<tr><td><code>'constant'</code></td><td>Fixed, hidden value</td><td>Use <code>.defaultValue()</code></td></tr>
+<tr><td><code>'interval'</code></td><td>Time interval picker</td><td>Use <code>.options()</code> for intervals</td></tr>
+</table>
+
+<h3>Examples</h3>
+
+<p><strong>Query-driven variable:</strong></p>
+
+<pre><code class="language-typescript">
+Variable.create('host')
+  .type('query')
+  .label('Host')
+  .description('Filter by hostname')
+  .query("source = metrics | dedup host | fields host")
+  .multi(true)
+</code></pre>
+
+<p><strong>Custom dropdown:</strong></p>
+
+<pre><code class="language-typescript">
+Variable.create('environment')
+  .type('custom')
+  .label('Environment')
+  .options(['production', 'staging', 'development'])
+  .defaultValue('production')
+</code></pre>
+
+<p><strong>Constant (hidden):</strong></p>
+
+<pre><code class="language-typescript">
+Variable.create('index_prefix')
+  .type('constant')
+  .defaultValue('logs-app-')
+</code></pre>
+
+<p><strong>Interval selector:</strong></p>
+
+<pre><code class="language-typescript">
+Variable.create('interval')
+  .type('interval')
+  .label('Bucket Size')
+  .options(['1m', '5m', '15m', '1h', '1d'])
+  .defaultValue('5m')
+</code></pre>
+
+<hr>
+
+<h2>Serialization</h2>
+
+<h3>toJSON</h3>
+
+<pre><code class="language-typescript">
+// Write to file
+const json = dashboard.toJSON('built/my-dashboard.json');
+
+// Get string only (no file written)
+const json = dashboard.toJSON();
+console.log(json);
+</code></pre>
+
+<p>JSON output uses sorted keys and 2-space indentation for deterministic, diff-friendly output.</p>
+
+<h3>toYAML</h3>
+
+<pre><code class="language-typescript">
+// Write to file
+const yaml = dashboard.toYAML('built/my-dashboard.yaml');
+
+// Get string only
+const yaml = dashboard.toYAML();
+console.log(yaml);
+</code></pre>
+
+<p>YAML is the recommended format for version control because it produces cleaner diffs.</p>
+
+<hr>
+
+<h2>Validation</h2>
+
+<p>The SDK performs client-side validation when calling <code>build()</code>. Validation checks include:</p>
+
+<ul>
+<li>Required fields (<code>title</code>, <code>panels</code>) are present</li>
+<li>Panel names are unique within a dashboard</li>
+<li>Grid positions have valid values (w &gt;= 1, h &gt;= 1)</li>
+<li>Query strings are non-empty</li>
+<li>Variable names are unique</li>
+</ul>
+
+<p>For server-side validation (checking data source existence, plugin availability), use <code>osdctl validate --server</code>. See the <a href="/cli-reference">CLI Reference</a>.</p>
+
+<hr>
+
+<h2>Reusable Components Pattern</h2>
+
+<p>One of the most powerful aspects of defining dashboards in code is the ability to create reusable, parameterized components.</p>
+
+<h3>Shared Panel Templates</h3>
+
+<p>Create a shared library of panel templates:</p>
+
+<pre><code class="language-typescript">
+// shared/panels.ts
+import { Panel, Query } from '@opensearch-dashboards/sdk';
+
+/**
+ * Creates a standard CPU usage line chart.
+ */
+export function cpuPanel(name: string, filter?: string): Panel {
+  const whereClause = filter ? `| where ${filter}` : '';
+  return Panel.create(name)
+    .visualization('line')
+    .gridPosition({ x: 0, y: 0, w: 24, h: 12 })
+    .query(
+      Query.ppl(`source = metrics ${whereClause} | stats avg(cpu_percent) by span(timestamp, 1m), host`)
+    )
+    .option('showLegend', true)
+    .option('yAxisLabel', 'CPU %');
+}
+
+/**
+ * Creates a standard memory usage gauge.
+ */
+export function memoryGauge(name: string, filter?: string): Panel {
+  const whereClause = filter ? `| where ${filter}` : '';
+  return Panel.create(name)
+    .visualization('gauge')
+    .gridPosition({ x: 0, y: 0, w: 8, h: 8 })
+    .query(
+      Query.ppl(`source = metrics ${whereClause} | stats avg(memory_used_percent) as usage`)
+    )
+    .option('min', 0)
+    .option('max', 100)
+    .option('thresholds', [
+      { value: 0, color: 'green' },
+      { value: 70, color: 'yellow' },
+      { value: 90, color: 'red' },
+    ]);
+}
+
+/**
+ * Creates a standard error log table.
+ */
+export function errorTable(name: string, source: string): Panel {
+  return Panel.create(name)
+    .visualization('table')
+    .gridPosition({ x: 0, y: 0, w: 24, h: 10 })
+    .query(
+      Query.ppl(`source = ${source} | where level = 'ERROR' | sort - timestamp | head 50`)
+    )
+    .option('showPagination', true);
+}
+</code></pre>
+
+<h3>Using Shared Panels</h3>
+
+<pre><code class="language-typescript">
+// dashboards/web-server.ts
+import { Dashboard, DataSource } from '@opensearch-dashboards/sdk';
+import { cpuPanel, memoryGauge, errorTable } from '../shared/panels';
+
+Dashboard.create('web-server-monitoring')
+  .title('Web Server Monitoring')
+  .description('CPU, memory, and error monitoring for web servers')
+  .labels({ env: 'production', team: 'platform', service: 'web' })
+  .timeRange('now-1h', 'now')
+  .refreshInterval('30s')
+  .addPanel(cpuPanel('web-cpu', "service = 'web'"))
+  .addPanel(memoryGauge('web-memory', "service = 'web'"))
+  .addPanel(errorTable('web-errors', 'web_server_logs'))
+  .addDataSource(DataSource.create('metrics').type('opensearch').default(true))
+  .toYAML('built/web-server-monitoring.yaml');
+</code></pre>
+
+<hr>
+
+<h2>Complete Examples</h2>
+
+<h3>Kubernetes Monitoring Dashboard</h3>
+
+<pre><code class="language-typescript">
+import { Dashboard, Panel, Query, DataSource, Variable } from '@opensearch-dashboards/sdk';
+
+const k8sDashboard = Dashboard.create('kubernetes-cluster-overview')
+  .title('Kubernetes Cluster Overview')
+  .description('Pod, node, and container metrics for Kubernetes clusters')
+  .labels({ env: 'production', team: 'infrastructure', domain: 'kubernetes' })
+  .annotation('owner', 'infra-team@company.com')
+  .timeRange('now-3h', 'now')
+  .refreshInterval('30s')
+  .addVariable(
+    Variable.create('namespace')
+      .type('query')
+      .label('Namespace')
+      .query("source = k8s_metrics | dedup namespace | fields namespace")
+      .multi(true)
+  )
+  .addVariable(
+    Variable.create('node')
+      .type('query')
+      .label('Node')
+      .query("source = k8s_metrics | dedup node | fields node")
+      .multi(true)
+  )
+  // Row 1: Cluster summary metrics
+  .addPanel(
+    Panel.create('total-pods')
+      .visualization('metric')
+      .gridPosition({ x: 0, y: 0, w: 8, h: 6 })
+      .query(Query.ppl("source = k8s_metrics | where metric = 'pod_count' | stats sum(value) as total_pods"))
+  )
+  .addPanel(
+    Panel.create('running-pods')
+      .visualization('metric')
+      .gridPosition({ x: 8, y: 0, w: 8, h: 6 })
+      .query(Query.ppl("source = k8s_metrics | where metric = 'pod_count' and status = 'Running' | stats sum(value) as running"))
+  )
+  .addPanel(
+    Panel.create('failed-pods')
+      .visualization('metric')
+      .gridPosition({ x: 16, y: 0, w: 8, h: 6 })
+      .query(Query.ppl("source = k8s_metrics | where metric = 'pod_count' and status = 'Failed' | stats sum(value) as failed"))
+      .option('colorMode', 'background')
+      .option('thresholds', [{ value: 0, color: 'green' }, { value: 1, color: 'red' }])
+  )
+  // Row 2: CPU and memory
+  .addPanel(
+    Panel.create('node-cpu')
+      .visualization('line')
+      .gridPosition({ x: 0, y: 6, w: 24, h: 12 })
+      .query(Query.ppl("source = k8s_metrics | where metric = 'node_cpu_percent' and namespace IN ($namespace) | stats avg(value) by span(timestamp, 1m), node"))
+      .option('showLegend', true)
+      .option('yAxisLabel', 'CPU %')
+  )
+  .addPanel(
+    Panel.create('node-memory')
+      .visualization('line')
+      .gridPosition({ x: 24, y: 6, w: 24, h: 12 })
+      .query(Query.ppl("source = k8s_metrics | where metric = 'node_memory_percent' and namespace IN ($namespace) | stats avg(value) by span(timestamp, 1m), node"))
+      .option('showLegend', true)
+      .option('yAxisLabel', 'Memory %')
+  )
+  // Row 3: Pod restart table
+  .addPanel(
+    Panel.create('pod-restarts')
+      .visualization('table')
+      .gridPosition({ x: 0, y: 18, w: 48, h: 10 })
+      .query(Query.ppl("source = k8s_events | where reason = 'Restarted' | stats count() as restarts by pod, namespace | sort - restarts | head 20"))
+  )
+  .addDataSource(DataSource.create('k8s-metrics').type('opensearch').default(true));
+
+k8sDashboard.toYAML('built/kubernetes-cluster-overview.yaml');
+</code></pre>
+
+<h3>Application Performance Dashboard</h3>
+
+<pre><code class="language-typescript">
+import { Dashboard, Panel, Query, DataSource, Variable } from '@opensearch-dashboards/sdk';
+
+const apmDashboard = Dashboard.create('application-performance')
+  .title('Application Performance')
+  .description('Request latency, throughput, and error rates by service')
+  .labels({ env: 'production', team: 'platform', domain: 'apm' })
+  .annotation('owner', 'platform-team@company.com')
+  .timeRange('now-1h', 'now')
+  .refreshInterval('15s')
+  .addVariable(
+    Variable.create('service')
+      .type('query')
+      .label('Service')
+      .query("source = traces | dedup service_name | fields service_name")
+  )
+  .addVariable(
+    Variable.create('percentile')
+      .type('custom')
+      .label('Percentile')
+      .options(['p50', 'p90', 'p95', 'p99'])
+      .defaultValue('p95')
+  )
+  // Row 1: Key metrics
+  .addPanel(
+    Panel.create('request-rate')
+      .visualization('metric')
+      .gridPosition({ x: 0, y: 0, w: 12, h: 6 })
+      .query(Query.ppl("source = traces | where service_name = '$service' | stats count() as rps"))
+      .option('unit', 'req/s')
+  )
+  .addPanel(
+    Panel.create('error-rate-pct')
+      .visualization('gauge')
+      .gridPosition({ x: 12, y: 0, w: 12, h: 6 })
+      .query(Query.ppl("source = traces | where service_name = '$service' | eval is_error = if(status_code &gt;= 500, 1, 0) | stats avg(is_error) * 100 as error_pct"))
+      .option('min', 0)
+      .option('max', 100)
+      .option('unit', '%')
+      .option('thresholds', [
+        { value: 0, color: 'green' },
+        { value: 1, color: 'yellow' },
+        { value: 5, color: 'red' },
+      ])
+  )
+  .addPanel(
+    Panel.create('p95-latency')
+      .visualization('metric')
+      .gridPosition({ x: 24, y: 0, w: 12, h: 6 })
+      .query(Query.ppl("source = traces | where service_name = '$service' | stats percentile(duration_ms, 95) as p95"))
+      .option('unit', 'ms')
+  )
+  // Row 2: Time series
+  .addPanel(
+    Panel.create('latency-over-time')
+      .visualization('line')
+      .gridPosition({ x: 0, y: 6, w: 24, h: 12 })
+      .query(Query.ppl("source = traces | where service_name = '$service' | stats percentile(duration_ms, 50) as p50, percentile(duration_ms, 95) as p95, percentile(duration_ms, 99) as p99 by span(timestamp, 1m)"))
+      .option('showLegend', true)
+      .option('yAxisLabel', 'Latency (ms)')
+  )
+  .addPanel(
+    Panel.create('throughput-over-time')
+      .visualization('bar')
+      .gridPosition({ x: 24, y: 6, w: 24, h: 12 })
+      .query(Query.ppl("source = traces | where service_name = '$service' | stats count() as requests by span(timestamp, 1m)"))
+      .option('yAxisLabel', 'Requests')
+  )
+  // Row 3: Slow endpoints
+  .addPanel(
+    Panel.create('slow-endpoints')
+      .visualization('table')
+      .gridPosition({ x: 0, y: 18, w: 48, h: 10 })
+      .query(
+        Query.sql("SELECT endpoint, COUNT(*) as requests, AVG(duration_ms) as avg_latency, PERCENTILE(duration_ms, 95) as p95_latency, SUM(CASE WHEN status_code &gt;= 500 THEN 1 ELSE 0 END) as errors FROM traces WHERE service_name = '$service' GROUP BY endpoint ORDER BY p95_latency DESC LIMIT 20")
+      )
+  )
+  .addDataSource(DataSource.create('traces-cluster').type('opensearch').default(true));
+
+apmDashboard.toYAML('built/application-performance.yaml');
+</code></pre>
+
+<h3>Log Analysis Dashboard</h3>
+
+<pre><code class="language-typescript">
+import { Dashboard, Panel, Query, DataSource, Variable } from '@opensearch-dashboards/sdk';
+
+const logsDashboard = Dashboard.create('log-analysis')
+  .title('Log Analysis')
+  .description('Application log volume, error patterns, and trending issues')
+  .labels({ env: 'production', team: 'sre', domain: 'logs' })
+  .annotation('owner', 'sre-team@company.com')
+  .timeRange('now-24h', 'now')
+  .refreshInterval('1m')
+  .addVariable(
+    Variable.create('service')
+      .type('query')
+      .label('Service')
+      .query("source = app_logs | dedup service | fields service")
+      .multi(true)
+  )
+  .addVariable(
+    Variable.create('level')
+      .type('custom')
+      .label('Log Level')
+      .options(['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'])
+      .defaultValue('ERROR')
+      .multi(true)
+  )
+  // Row 1: Summary
+  .addPanel(
+    Panel.create('log-volume')
+      .visualization('area')
+      .gridPosition({ x: 0, y: 0, w: 36, h: 10 })
+      .query(Query.ppl("source = app_logs | where service IN ($service) | stats count() by span(timestamp, 15m), level"))
+      .option('showLegend', true)
+      .option('legendPosition', 'right')
+  )
+  .addPanel(
+    Panel.create('error-count')
+      .visualization('metric')
+      .gridPosition({ x: 36, y: 0, w: 12, h: 5 })
+      .query(Query.ppl("source = app_logs | where level = 'ERROR' and service IN ($service) | stats count() as errors"))
+      .option('colorMode', 'background')
+  )
+  .addPanel(
+    Panel.create('fatal-count')
+      .visualization('metric')
+      .gridPosition({ x: 36, y: 5, w: 12, h: 5 })
+      .query(Query.ppl("source = app_logs | where level = 'FATAL' and service IN ($service) | stats count() as fatal"))
+      .option('colorMode', 'background')
+  )
+  // Row 2: Patterns and breakdown
+  .addPanel(
+    Panel.create('level-breakdown')
+      .visualization('pie')
+      .gridPosition({ x: 0, y: 10, w: 12, h: 10 })
+      .query(Query.ppl("source = app_logs | where service IN ($service) | stats count() by level"))
+      .option('donut', true)
+  )
+  .addPanel(
+    Panel.create('top-error-messages')
+      .visualization('bar')
+      .gridPosition({ x: 12, y: 10, w: 36, h: 10 })
+      .query(Query.ppl("source = app_logs | where level IN ($level) and service IN ($service) | patterns message | stats count() as occurrences by patterns_field | sort - occurrences | head 10"))
+      .option('orientation', 'horizontal')
+  )
+  // Row 3: Raw logs
+  .addPanel(
+    Panel.create('recent-errors')
+      .visualization('table')
+      .gridPosition({ x: 0, y: 20, w: 48, h: 12 })
+      .query(Query.ppl("source = app_logs | where level IN ($level) and service IN ($service) | sort - timestamp | fields timestamp, service, level, message | head 100"))
+      .option('showPagination', true)
+      .option('perPage', 25)
+  )
+  .addDataSource(DataSource.create('logs').type('opensearch').default(true));
+
+logsDashboard.toYAML('built/log-analysis.yaml');
+</code></pre>
+
+<hr>
+
+<h2>Related Documentation</h2>
+
+<ul>
+<li><a href="/getting-started">Getting Started</a> -- End-to-end walkthrough from installation to deployment</li>
+<li><a href="/cli-reference">CLI Reference</a> -- Build, validate, diff, apply, and pull commands</li>
+<li><a href="/api-reference">API Reference</a> -- Server-side REST endpoints</li>
+<li><a href="/cookbook">Cookbook</a> -- Common patterns and reusable component strategies</li>
+</ul>
+
+</body>
+</html>

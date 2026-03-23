@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting Started - Dashboards-as-Code</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 980px; margin: 0 auto; padding: 40px 20px; color: #1f2328; line-height: 1.6; background: #fff; }
+h1 { font-size: 2em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; margin-top: 1.5em; }
+h3 { font-size: 1.25em; margin-top: 1.5em; }
+code { background: #eff1f3; padding: 0.2em 0.4em; border-radius: 6px; font-size: 85%; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace; }
+pre { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; overflow-x: auto; }
+pre code { background: none; padding: 0; font-size: 85%; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+th, td { border: 1px solid #d1d9e0; padding: 6px 13px; text-align: left; }
+th { background: #f6f8fa; font-weight: 600; }
+tr:nth-child(2n) { background: #f6f8fa; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+blockquote { border-left: 4px solid #d1d9e0; color: #656d76; margin: 16px 0; padding: 0 16px; }
+hr { border: none; border-top: 1px solid #d1d9e0; margin: 24px 0; }
+nav { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; margin-bottom: 32px; }
+nav a { display: inline-block; margin: 4px 12px 4px 0; }
+.nav-current { font-weight: 700; color: #1f2328; }
+ul, ol { padding-left: 2em; }
+li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<nav><a href="/">Overview</a> | <a href="/getting-started" class="nav-current">Getting Started</a> | <a href="/sdk-reference">SDK Reference</a> | <a href="/cli-reference">CLI Reference</a> | <a href="/api-reference">API Reference</a> | <a href="/ci-cd-guide">CI/CD Guide</a> | <a href="/migration-guide">Migration Guide</a> | <a href="/cookbook">Cookbook</a></nav>
+<h1>Getting Started with Dashboards-as-Code</h1>
+
+<p>This guide walks you through creating your first Dashboards-as-Code project, from installation to a deployed dashboard.</p>
+
+<h2>Prerequisites</h2>
+
+<ul>
+<li><strong>Node.js</strong> 18 or later</li>
+<li><strong>npm</strong> 9 or later</li>
+<li><strong>An OpenSearch Dashboards instance</strong> (local or remote) running version 2.x or later</li>
+<li><strong>Git</strong> (recommended for version control)</li>
+</ul>
+
+<h2>Step 1: Install the CLI</h2>
+
+<p>Install <code>osdctl</code> globally via npm:</p>
+
+<pre><code class="language-bash">
+npm install -g @opensearch-dashboards/cli
+</code></pre>
+
+<p>Verify the installation:</p>
+
+<pre><code class="language-bash">
+osdctl --version
+# osdctl version 0.1.0
+</code></pre>
+
+<p>Alternative installation methods:</p>
+
+<pre><code class="language-bash">
+# Via Homebrew (macOS/Linux)
+brew install opensearch-project/tap/osdctl
+
+# Via Docker
+docker pull opensearchproject/osdctl:latest
+</code></pre>
+
+<h2>Step 2: Create a New Project</h2>
+
+<p>Scaffold a new DaC project using <code>osdctl init</code>:</p>
+
+<pre><code class="language-bash">
+osdctl init --language typescript my-dashboards
+</code></pre>
+
+<p>This creates the following project structure:</p>
+
+<pre><code class="language-">
+my-dashboards/
+  package.json          # Node.js project with osdctl scripts
+  tsconfig.json         # TypeScript compiler configuration
+  .osdctl.yaml          # CLI configuration (profiles, lint rules)
+  .gitignore            # Ignores built/ and node_modules/
+  src/
+    dashboards/
+      example.ts        # Example dashboard in TypeScript
+      example.json      # Example dashboard in JSON
+  built/                # Build output directory
+</code></pre>
+
+<p>Enter the project and install dependencies:</p>
+
+<pre><code class="language-bash">
+cd my-dashboards
+npm install
+</code></pre>
+
+<h2>Step 3: Configure Connection Profiles</h2>
+
+<p>Open <code>.osdctl.yaml</code> and update the connection profiles for your environments:</p>
+
+<pre><code class="language-yaml">
+defaultProfile: dev
+outputDir: ./built
+
+profiles:
+  dev:
+    url: http://localhost:5601
+  staging:
+    url: https://dashboards-staging.internal:5601
+  prod:
+    url: https://dashboards.company.com:5601
+
+lint:
+  require-labels: true
+  require-description: true
+  max-panels: 50
+</code></pre>
+
+<p>For authentication, set environment variables rather than storing credentials in config files:</p>
+
+<pre><code class="language-bash">
+# Basic auth
+export OSD_USERNAME=admin
+export OSD_PASSWORD=admin
+
+# Or token-based auth
+export OSD_TOKEN=your-api-token
+</code></pre>
+
+<p>See the <a href="/cli-reference">CLI Reference</a> for the full configuration format.</p>
+
+<h2>Step 4: Write Your First Dashboard</h2>
+
+<p>Create a new file at <code>src/dashboards/my-first-dashboard.ts</code>:</p>
+
+<pre><code class="language-typescript">
+import { Dashboard, Panel, Query, DataSource, Variable } from '@opensearch-dashboards/sdk';
+
+const dashboard = Dashboard.create('my-first-dashboard')
+  .title('My First Dashboard')
+  .description('A getting-started dashboard tracking web server metrics')
+  .labels({ env: 'development', team: 'platform' })
+  .annotation('owner', 'your-name@company.com')
+  .timeRange('now-1h', 'now')
+  .refreshInterval('30s')
+  .addVariable(
+    Variable.create('host')
+      .type('query')
+      .label('Host')
+      .description('Select a host to filter by')
+      .query("source = web_logs | stats count() by host | fields host")
+  )
+  .addPanel(
+    Panel.create('request-rate')
+      .visualization('line')
+      .gridPosition({ x: 0, y: 0, w: 24, h: 12 })
+      .query(
+        Query.ppl("source = web_logs | where host = '$host' | stats count() as requests by span(timestamp, 1m)")
+      )
+      .option('showLegend', true)
+      .option('legendPosition', 'bottom')
+  )
+  .addPanel(
+    Panel.create('error-rate')
+      .visualization('area')
+      .gridPosition({ x: 0, y: 12, w: 12, h: 10 })
+      .query(
+        Query.ppl("source = web_logs | where status &gt;= 500 | stats count() as errors by span(timestamp, 1m)")
+      )
+      .option('showLegend', true)
+  )
+  .addPanel(
+    Panel.create('status-breakdown')
+      .visualization('pie')
+      .gridPosition({ x: 12, y: 12, w: 12, h: 10 })
+      .query(
+        Query.ppl("source = web_logs | stats count() as requests by status")
+      )
+  )
+  .addPanel(
+    Panel.create('top-endpoints')
+      .visualization('table')
+      .gridPosition({ x: 0, y: 22, w: 24, h: 10 })
+      .query(
+        Query.sql("SELECT endpoint, COUNT(*) as hits, AVG(latency_ms) as avg_latency FROM web_logs GROUP BY endpoint ORDER BY hits DESC LIMIT 20")
+      )
+  )
+  .addDataSource(
+    DataSource.create('web-logs-cluster')
+      .type('opensearch')
+      .default(true)
+  );
+
+// Output: write to YAML file
+dashboard.toYAML('built/my-first-dashboard.yaml');
+
+// Or output to JSON
+// dashboard.toJSON('built/my-first-dashboard.json');
+</code></pre>
+
+<h2>Step 5: Build</h2>
+
+<p>Compile the TypeScript source into a deployable YAML definition:</p>
+
+<pre><code class="language-bash">
+osdctl build -f src/dashboards/my-first-dashboard.ts -o yaml
+</code></pre>
+
+<p>This executes the TypeScript file and writes the output to <code>built/my-first-dashboard.yaml</code>.</p>
+
+<p>To build all dashboards in a directory:</p>
+
+<pre><code class="language-bash">
+osdctl build -d src/dashboards/ -o yaml
+</code></pre>
+
+<p>To preview the output without writing files:</p>
+
+<pre><code class="language-bash">
+osdctl build -f src/dashboards/my-first-dashboard.ts --stdout
+</code></pre>
+
+<p>The built YAML output looks like this:</p>
+
+<pre><code class="language-yaml">
+apiVersion: dashboards.opensearch.org/v1alpha1
+kind: Dashboard
+metadata:
+  name: my-first-dashboard
+  labels:
+    env: development
+    team: platform
+  annotations:
+    owner: your-name@company.com
+spec:
+  title: My First Dashboard
+  description: A getting-started dashboard tracking web server metrics
+  timeRange:
+    from: now-1h
+    to: now
+  refreshInterval: 30s
+  panels:
+    - name: request-rate
+      type: visualization
+      visualization: line
+      gridPosition:
+        x: 0
+        y: 0
+        w: 24
+        h: 12
+      query:
+        language: PPL
+        query: "source = web_logs | where host = '$host' | stats count() as requests by span(timestamp, 1m)"
+      options:
+        showLegend: true
+        legendPosition: bottom
+    # ... additional panels
+  dataSources:
+    - name: web-logs-cluster
+      type: opensearch
+      default: true
+  variables:
+    - name: host
+      type: query
+      label: Host
+      description: Select a host to filter by
+      query: "source = web_logs | stats count() by host | fields host"
+</code></pre>
+
+<h2>Step 6: Validate</h2>
+
+<p>Validate the built definitions against the schema:</p>
+
+<pre><code class="language-bash">
+osdctl validate
+</code></pre>
+
+<p>Expected output:</p>
+
+<pre><code class="language-">
+Validating 1 dashboard...
+  my-first-dashboard.yaml    VALID
+
+1/1 valid, 0 errors
+</code></pre>
+
+<p>For server-side validation that also checks data source existence and plugin availability:</p>
+
+<pre><code class="language-bash">
+osdctl validate --server --profile dev
+</code></pre>
+
+<h2>Step 7: Preview Changes with Diff</h2>
+
+<p>Before deploying, see what would change compared to the currently deployed state:</p>
+
+<pre><code class="language-bash">
+osdctl diff --profile dev
+</code></pre>
+
+<p>Since this is a new dashboard, the output will show:</p>
+
+<pre><code class="language-">
+Comparing 1 dashboard against dev...
+
+  my-first-dashboard         NEW
+
+0 updated, 1 new, 0 unchanged
+</code></pre>
+
+<h2>Step 8: Deploy</h2>
+
+<p>Deploy the dashboard to your development instance:</p>
+
+<pre><code class="language-bash">
+# First, do a dry run to see what would happen
+osdctl apply --dry-run --profile dev
+</code></pre>
+
+<p>Output:</p>
+
+<pre><code class="language-">
+Applying 1 dashboard to dev (dry-run)...
+  my-first-dashboard         WOULD CREATE  (v1)
+
+1 change would be applied, 0 unchanged
+</code></pre>
+
+<p>When you are satisfied, apply for real:</p>
+
+<pre><code class="language-bash">
+osdctl apply --profile dev
+</code></pre>
+
+<p>Output:</p>
+
+<pre><code class="language-">
+Applying 1 dashboard to dev...
+  my-first-dashboard         CREATED  (v1)
+
+1 change applied, 0 unchanged
+</code></pre>
+
+<p>For production deployments, use the confirmation prompt:</p>
+
+<pre><code class="language-bash">
+osdctl apply --profile prod --confirm
+</code></pre>
+
+<h2>Step 9: Verify in the UI</h2>
+
+<p>Open your OpenSearch Dashboards instance in a browser:</p>
+
+<pre><code class="language-">
+http://localhost:5601/app/dashboards
+</code></pre>
+
+<p>You should see "My First Dashboard" in the dashboard list. It will have a "Managed by code" badge indicating it was deployed via <code>osdctl</code>. The <code>managed-by: osdctl</code> label is automatically applied during deployment.</p>
+
+<h2>Step 10: Commit to Git</h2>
+
+<p>Initialize a Git repository and commit your work:</p>
+
+<pre><code class="language-bash">
+git init
+git add .
+git commit -m "Add initial DaC project with web server dashboard"
+</code></pre>
+
+<p>From here, all dashboard changes follow the standard Git workflow:</p>
+<ol>
+<li>Create a branch</li>
+<li>Modify dashboard code</li>
+<li>Open a pull request</li>
+<li>CI validates and diffs automatically</li>
+<li>Merge deploys to the target environment</li>
+</ol>
+
+<h2>Next Steps</h2>
+
+<ul>
+<li><strong><a href="/sdk-reference">TypeScript SDK Reference</a></strong> -- Learn the full Dashboard, Panel, Query, Variable, and DataSource builder APIs.</li>
+<li><strong><a href="/cli-reference">CLI Reference</a></strong> -- All commands, flags, configuration, and multi-environment workflows.</li>
+<li><strong><a href="/ci-cd-guide">CI/CD Integration Guide</a></strong> -- Set up GitHub Actions or GitLab CI for automated deployment.</li>
+<li><strong><a href="/migration-guide">Migration Guide</a></strong> -- Bring existing dashboards under code management with <code>osdctl pull</code>.</li>
+<li><strong><a href="/cookbook">Cookbook</a></strong> -- Common patterns like per-service dashboard generation, shared panel libraries, and environment-specific overrides.</li>
+</ul>
+
+</body>
+</html>
