@@ -37,7 +37,7 @@ li { margin: 4px 0; }
 
 <pre><code class="language-bash">
 # Via npm (recommended)
-npm install -g @opensearch-dashboards/cli
+npm install -g @osd/cli
 
 # Via Homebrew (macOS/Linux)
 brew install opensearch-project/tap/osdctl
@@ -138,6 +138,8 @@ lint:
 
 <p><strong>Security note:</strong> Credentials are never stored in config files. Always use environment variables, keychains, or <code>token_command</code> for credential retrieval.</p>
 
+<p><strong>HTTP timeout:</strong> The CLI client uses a 30-second HTTP timeout for all requests to the OpenSearch Dashboards server. If a request exceeds this limit (e.g., a large <code>_bulk_apply</code>), the CLI will report a timeout error.</p>
+
 <h3>Environment Variables</h3>
 
 <table>
@@ -156,7 +158,7 @@ lint:
 
 <h3><code>osdctl init</code></h3>
 
-<p>Scaffold a new Dashboards-as-Code project with SDK dependencies, folder structure, example dashboards, and CI configuration.</p>
+<p>Scaffold a new Dashboards-as-Code project with SDK dependencies, folder structure, example dashboards, and CI configuration. The generated example files use SDK builder code (not raw JSON), giving you a working starting point with the fluent TypeScript API.</p>
 
 <p><strong>Usage:</strong></p>
 
@@ -201,8 +203,7 @@ my-dashboards/
   .gitignore              # Ignores built/, node_modules/
   src/
     dashboards/
-      example.ts          # Example dashboard source
-      example.json        # Example dashboard JSON
+      example.ts          # Example dashboard using SDK builders
   built/                  # Build output directory
 </code></pre>
 

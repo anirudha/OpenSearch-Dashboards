@@ -47,7 +47,7 @@ li { margin: 4px 0; }
 <p>Install <code>osdctl</code> globally via npm:</p>
 
 <pre><code class="language-bash">
-npm install -g @opensearch-dashboards/cli
+npm install -g @osd/cli
 </code></pre>
 
 <p>Verify the installation:</p>
@@ -85,8 +85,7 @@ my-dashboards/
   .gitignore            # Ignores built/ and node_modules/
   src/
     dashboards/
-      example.ts        # Example dashboard in TypeScript
-      example.json      # Example dashboard in JSON
+      example.ts        # Example dashboard using SDK builders
   built/                # Build output directory
 </code></pre>
 
@@ -137,7 +136,7 @@ export OSD_TOKEN=your-api-token
 <p>Create a new file at <code>src/dashboards/my-first-dashboard.ts</code>:</p>
 
 <pre><code class="language-typescript">
-import { Dashboard, Panel, Query, DataSource, Variable } from '@opensearch-dashboards/sdk';
+import { Dashboard, Panel, Query, DataSource, Variable } from '@osd/dashboards-sdk';
 
 const dashboard = Dashboard.create('my-first-dashboard')
   .title('My First Dashboard')

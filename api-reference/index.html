@@ -69,7 +69,7 @@ curl -H "Authorization: Bearer &lt;token&gt;" \
 
 <h2>POST /api/saved_objects/_validate</h2>
 
-<p>Validate a resource definition against the typed JSON Schema without persisting it.</p>
+<p>Validate a resource definition against the <code>SavedObjectSchemaRegistry</code> without persisting it. The registry provides typed schemas for each saved object type, ensuring validation is consistent with the server's registered schema definitions.</p>
 
 <h3>Request</h3>
 
@@ -98,7 +98,14 @@ osd-xsrf: true
     "timeRestore": true,
     "timeFrom": "now-1h",
     "timeTo": "now"
-  }
+  },
+  "references": [
+    {
+      "id": "cpu-line-chart",
+      "name": "panel_0",
+      "type": "visualization"
+    }
+  ]
 }
 </code></pre>
 
@@ -106,7 +113,7 @@ osd-xsrf: true
 
 <table>
 <tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
-<tr><td><code>mode</code></td><td><code>schema</code></td><td>Validation mode: <code>schema</code> (JSON Schema only, fast, offline-capable) or <code>full</code> (schema + server-side checks for data sources, index patterns, plugins)</td></tr>
+<tr><td><code>mode</code></td><td><code>schema</code></td><td>Validation mode: <code>schema</code> (JSON Schema only, fast, offline-capable) or <code>full</code> (schema + server-side checks for data sources, index patterns, plugins). In <code>full</code> mode, the <code>references</code> array is also validated to ensure all referenced objects exist.</td></tr>
 </table>
 
 <h3>Response: Success</h3>
@@ -190,7 +197,14 @@ curl -u admin:admin \
           "id": "some-viz-id"
         }
       ]
-    }
+    },
+    "references": [
+      {
+        "id": "some-viz-id",
+        "name": "panel_0",
+        "type": "visualization"
+      }
+    ]
   }'
 </code></pre>
 
@@ -307,7 +321,9 @@ Content-Type: application/json
 
 <h2>POST /api/saved_objects/_bulk_apply</h2>
 
-<p>Apply multiple resource definitions in a single transactional operation. Creates objects that do not exist and updates those that do (upsert semantics).</p>
+<p>Apply multiple resource definitions in a single atomic operation. The endpoint uses a <strong>validate-all-then-write</strong> strategy: all resources are validated first, and only if every resource passes validation are they written using <code>bulkCreate()</code>. If any resource fails validation, the entire batch is rejected and no changes are persisted. Creates objects that do not exist and updates those that do (upsert semantics).</p>
+
+<p><strong>Size limit:</strong> The number of resources in a single request is bounded by the <code>maxImportExportSize</code> configuration setting. Requests exceeding this limit are rejected with a <code>400 Bad Request</code> error.</p>
 
 <h3>Request</h3>
 
@@ -566,6 +582,67 @@ spec:
 <tr><td>Readability</td><td>Machine-oriented</td><td>Human-readable</td></tr>
 <tr><td>Diff quality</td><td>Noisy, hard to review</td><td>Clean, meaningful diffs</td></tr>
 </table>
+
+<hr>
+
+<h2>POST /api/saved_objects/_unlock/{type}/{id}</h2>
+
+<p>Emergency unlock of a managed saved object. Managed objects (those with the <code>managed-by</code> label) are protected from direct UI edits by default. This endpoint removes the managed lock, allowing the object to be edited freely through the UI.</p>
+
+<p><strong>Use this only for emergency situations</strong> where you need to make an immediate change to a code-managed dashboard without going through the full DaC workflow.</p>
+
+<h3>Request</h3>
+
+<pre><code class="language-http">
+POST /api/saved_objects/_unlock/dashboard/cpu-monitoring
+Content-Type: application/json
+osd-xsrf: true
+</code></pre>
+
+<h3>Path Parameters</h3>
+
+<table>
+<tr><th>Parameter</th><th>Description</th></tr>
+<tr><td><code>type</code></td><td>Saved object type (e.g., <code>dashboard</code>, <code>visualization</code>)</td></tr>
+<tr><td><code>id</code></td><td>Saved object ID</td></tr>
+</table>
+
+<h3>Response: Success</h3>
+
+<pre><code class="language-http">
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "success": true,
+  "type": "dashboard",
+  "id": "cpu-monitoring",
+  "message": "Object unlocked. The managed-by label has been removed."
+}
+</code></pre>
+
+<h3>Response: Not Found</h3>
+
+<pre><code class="language-http">
+HTTP/1.1 404 Not Found
+Content-Type: application/json
+
+{
+  "statusCode": 404,
+  "error": "Not Found",
+  "message": "Saved object [dashboard/cpu-monitoring] not found"
+}
+</code></pre>
+
+<h3>Example</h3>
+
+<pre><code class="language-bash">
+curl -u admin:admin \
+  -X POST "http://localhost:5601/api/saved_objects/_unlock/dashboard/cpu-monitoring" \
+  -H 'osd-xsrf: true'
+</code></pre>
+
+<blockquote><p><strong>Warning:</strong> After unlocking, the object is no longer tracked as code-managed. The next <code>osdctl apply</code> will re-apply the code-managed version and restore the <code>managed-by</code> label, potentially overwriting any manual changes made after unlocking.</p></blockquote>
 
 <hr>
 

@@ -31,12 +31,12 @@ li { margin: 4px 0; }
 <nav><a href="/">Overview</a> | <a href="/getting-started">Getting Started</a> | <a href="/sdk-reference" class="nav-current">SDK Reference</a> | <a href="/cli-reference">CLI Reference</a> | <a href="/api-reference">API Reference</a> | <a href="/ci-cd-guide">CI/CD Guide</a> | <a href="/migration-guide">Migration Guide</a> | <a href="/cookbook">Cookbook</a></nav>
 <h1>TypeScript SDK Reference</h1>
 
-<p>The <code>@opensearch-dashboards/sdk</code> package provides strongly-typed, fluent builders for defining OpenSearch Dashboards resources as code. Definitions compile to JSON or YAML files suitable for version control and deployment via <code>osdctl apply</code>.</p>
+<p>The <code>@osd/dashboards-sdk</code> package provides strongly-typed, fluent builders for defining OpenSearch Dashboards resources as code. Definitions compile to JSON or YAML files suitable for version control and deployment via <code>osdctl apply</code>.</p>
 
 <h2>Installation</h2>
 
 <pre><code class="language-bash">
-npm install @opensearch-dashboards/sdk
+npm install @osd/dashboards-sdk
 </code></pre>
 
 <p>The SDK requires TypeScript 4.7 or later (or plain JavaScript with ES2020+ support).</p>
@@ -50,7 +50,7 @@ import {
   Query,
   DataSource,
   Variable,
-} from '@opensearch-dashboards/sdk';
+} from '@osd/dashboards-sdk';
 </code></pre>
 
 <hr>
@@ -555,7 +555,7 @@ console.log(yaml);
 
 <pre><code class="language-typescript">
 // shared/panels.ts
-import { Panel, Query } from '@opensearch-dashboards/sdk';
+import { Panel, Query } from '@osd/dashboards-sdk';
 
 /**
  * Creates a standard CPU usage line chart.
@@ -610,7 +610,7 @@ export function errorTable(name: string, source: string): Panel {
 
 <pre><code class="language-typescript">
 // dashboards/web-server.ts
-import { Dashboard, DataSource } from '@opensearch-dashboards/sdk';
+import { Dashboard, DataSource } from '@osd/dashboards-sdk';
 import { cpuPanel, memoryGauge, errorTable } from '../shared/panels';
 
 Dashboard.create('web-server-monitoring')
@@ -633,7 +633,7 @@ Dashboard.create('web-server-monitoring')
 <h3>Kubernetes Monitoring Dashboard</h3>
 
 <pre><code class="language-typescript">
-import { Dashboard, Panel, Query, DataSource, Variable } from '@opensearch-dashboards/sdk';
+import { Dashboard, Panel, Query, DataSource, Variable } from '@osd/dashboards-sdk';
 
 const k8sDashboard = Dashboard.create('kubernetes-cluster-overview')
   .title('Kubernetes Cluster Overview')
@@ -709,7 +709,7 @@ k8sDashboard.toYAML('built/kubernetes-cluster-overview.yaml');
 <h3>Application Performance Dashboard</h3>
 
 <pre><code class="language-typescript">
-import { Dashboard, Panel, Query, DataSource, Variable } from '@opensearch-dashboards/sdk';
+import { Dashboard, Panel, Query, DataSource, Variable } from '@osd/dashboards-sdk';
 
 const apmDashboard = Dashboard.create('application-performance')
   .title('Application Performance')
@@ -793,7 +793,7 @@ apmDashboard.toYAML('built/application-performance.yaml');
 <h3>Log Analysis Dashboard</h3>
 
 <pre><code class="language-typescript">
-import { Dashboard, Panel, Query, DataSource, Variable } from '@opensearch-dashboards/sdk';
+import { Dashboard, Panel, Query, DataSource, Variable } from '@osd/dashboards-sdk';
 
 const logsDashboard = Dashboard.create('log-analysis')
   .title('Log Analysis')
