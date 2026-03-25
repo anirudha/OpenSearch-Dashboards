@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design - Dashboards-as-Code</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 980px; margin: 0 auto; padding: 40px 20px; color: #1f2328; line-height: 1.6; background: #fff; }
+h1 { font-size: 2em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #d1d9e0; padding-bottom: .3em; margin-top: 1.5em; }
+h3 { font-size: 1.25em; margin-top: 1.5em; }
+code { background: #eff1f3; padding: 0.2em 0.4em; border-radius: 6px; font-size: 85%; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace; }
+pre { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; overflow-x: auto; }
+pre code { background: none; padding: 0; font-size: 85%; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+th, td { border: 1px solid #d1d9e0; padding: 6px 13px; text-align: left; }
+th { background: #f6f8fa; font-weight: 600; }
+tr:nth-child(2n) { background: #f6f8fa; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+blockquote { border-left: 4px solid #d1d9e0; color: #656d76; margin: 16px 0; padding: 0 16px; }
+hr { border: none; border-top: 1px solid #d1d9e0; margin: 24px 0; }
+nav { background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 6px; padding: 16px; margin-bottom: 32px; }
+nav a { display: inline-block; margin: 4px 12px 4px 0; }
+.nav-current { font-weight: 700; color: #1f2328; }
+ul, ol { padding-left: 2em; }
+li { margin: 4px 0; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 75%; font-weight: 600; }
+.badge-active { background: #dafbe1; color: #1a7f37; }
+.badge-future { background: #fff8c5; color: #9a6700; }
+</style>
+</head>
+<body>
+<nav><a href="index.html">Overview</a> | <a href="getting-started.html">Getting Started</a> | <a href="sdk-reference.html">SDK Reference</a> | <a href="cli-reference.html">CLI Reference</a> | <a href="api-reference.html">API Reference</a> | <a href="ci-cd-guide.html">CI/CD Guide</a> | <a href="migration-guide.html">Migration Guide</a> | <a href="cookbook.html">Cookbook</a> | <a href="design.html" class="nav-current">Design</a></nav>
+
+<h1>Design Documents</h1>
+
+<p>Architecture decisions, RFCs, and design rationale for Dashboards-as-Code.</p>
+
+<hr>
+
+<h2>OpenAPI Client Generation &amp; Schema Mapping <span class="badge badge-active">Active</span></h2>
+
+<h3>Problem</h3>
+
+<p>The DaC CLI (<code>osdctl</code>) has a hand-written HTTP client. Each new API endpoint requires manual client code. Meanwhile, the saved object schemas (dashboard, visualization, index-pattern, search) are JSON Schema files that aren't connected to the OpenAPI spec. This creates two maintenance burdens and no generated client libraries for other languages.</p>
+
+<h3>Solution: Two Schemas, One Pipeline</h3>
+
+<p>Use the existing <strong>OpenAPI spec</strong> as the single source of truth for API shape, and the existing <strong>saved object JSON Schemas</strong> as the single source of truth for resource attributes. Connect them to auto-generate typed clients.</p>
+
+<pre><code>
+ OpenAPI Spec (saved_objects.yml)
+ Defines: routes, parameters, request/response shapes
+         |
+         | $ref
+         v
+ Saved Object JSON Schemas
+ dashboard.v1.schema.json   common.schema.json
+ visualization.v1.schema.json   index-pattern.v1.schema.json
+ search.v1.schema.json
+ Defines: typed attributes per saved object type
+         |
+         | openapi-generator / openapi-typescript
+         v
+ Generated Clients
+ TypeScript  -->  packages/osd-dashboards-sdk/generated/
+ Python      -->  clients/python/
+ Go          -->  clients/go/
+ Java        -->  clients/java/
+</code></pre>
+
+<h3>What Changes</h3>
+
+<h4>1. Enriched OpenAPI Spec with Typed Attributes</h4>
+
+<p>Today <code>attributes</code> is <code>type: object</code> (untyped). We replace it with <code>$ref</code> to the saved object schemas:</p>
+
+<pre><code class="language-yaml">
+# Before
+attributes:
+  type: object
+  description: The metadata of the saved object
+
+# After - per-type request schemas
+DashboardCreateRequest:
+  type: object
+  required: [attributes]
+  properties:
+    attributes:
+      $ref: 'dashboard.v1.schema.json'
+    references:
+      $ref: '#/components/schemas/References'
+</code></pre>
+
+<h4>2. DaC Endpoints Added to OpenAPI Spec</h4>
+
+<table>
+<tr><th>Endpoint</th><th>Method</th><th>Description</th></tr>
+<tr><td><code>/_bulk_apply</code></td><td>POST</td><td>Deploy with dependency resolution</td></tr>
+<tr><td><code>/_diff</code></td><td>POST</td><td>Compare local vs deployed</td></tr>
+<tr><td><code>/_export_clean</code></td><td>POST</td><td>Deterministic export for DaC</td></tr>
+<tr><td><code>/_validate</code></td><td>POST</td><td>Validate against JSON Schema</td></tr>
+<tr><td><code>/_schemas</code></td><td>GET</td><td>List registered schemas</td></tr>
+<tr><td><code>/_schemas/{type}/{version}</code></td><td>GET</td><td>Get specific schema</td></tr>
+<tr><td><code>/_unlock/{type}/{id}</code></td><td>POST</td><td>Emergency unlock managed object</td></tr>
+</table>
+
+<h4>3. Generated TypeScript Client</h4>
+
+<pre><code class="language-bash">
+# Generate types from OpenAPI spec
+npx openapi-typescript docs/openapi/saved_objects/saved_objects.yml \
+  -o packages/osd-dashboards-sdk/src/generated/api.d.ts
+</code></pre>
+
+<p>The generated types replace the manual <code>OsdClient</code> interfaces. The SDK builder pattern stays as the ergonomic authoring layer on top of generated types.</p>
+
+<h4>4. Multi-Language Client Generation (Future)</h4>
+
+<pre><code class="language-bash">
+# Python
+openapi-generator generate -i saved_objects.yml -g python -o clients/python/
+
+# Go
+openapi-generator generate -i saved_objects.yml -g go -o clients/go/
+
+# Java
+openapi-generator generate -i saved_objects.yml -g java -o clients/java/
+</code></pre>
+
+<h3>Architecture</h3>
+
+<pre><code>
+ User Code (TS / Python / Go / Java)
+         |  uses generated client
+         v
+ Generated API Client    <-- from OpenAPI spec (routes + typed attributes)
+         |  HTTP
+         v
+ OSD Server API
+ Routes validate attributes against JSON Schemas at runtime
+         |
+         v
+ Saved Objects (OpenSearch index)
+</code></pre>
+
+<p><strong>Key insight:</strong> The OpenAPI spec defines the API contract (endpoints, auth, pagination). The saved object JSON Schemas define the domain model (what a dashboard looks like). By <code>$ref</code>-ing the JSON Schemas from within the OpenAPI spec, generated clients get <strong>both</strong> &mdash; typed API calls with typed resource attributes.</p>
+
+<h3>Implementation Phases</h3>
+
+<table>
+<tr><th>Phase</th><th>Work</th><th>Status</th></tr>
+<tr><td><strong>P1</strong></td><td>Add DaC endpoints to OpenAPI spec, wire $ref to JSON Schemas</td><td><span class="badge badge-active">Done</span></td></tr>
+<tr><td><strong>P2</strong></td><td>Generate TypeScript types, replace OsdClient with generated client</td><td><span class="badge badge-active">Done</span></td></tr>
+<tr><td><strong>P3</strong></td><td>CI: auto-regenerate clients on spec change, validate spec matches routes</td><td><span class="badge badge-future">Planned</span></td></tr>
+<tr><td><strong>P4</strong></td><td>Generate Python/Go/Java clients, publish as packages</td><td><span class="badge badge-future">Planned</span></td></tr>
+</table>
+
+<h3>What This Does NOT Change</h3>
+
+<ul>
+<li><strong>Saved object storage format</strong> &mdash; still JSON in OpenSearch indices</li>
+<li><strong>NDJSON import/export</strong> &mdash; still supported, the OpenAPI spec documents it</li>
+<li><strong>SDK builder pattern</strong> &mdash; stays as the ergonomic authoring layer on top of generated types</li>
+<li><strong>Internal schema model</strong> &mdash; no Perses adoption; we use our own JSON Schemas</li>
+</ul>
+
+<h3>Relationship to Other Efforts</h3>
+
+<ul>
+<li><strong><a href="https://github.com/opensearch-project/OpenSearch-Dashboards/issues/6719">Issue #6719</a> (Standardize OSD APIs with OpenAPI):</strong> This is a concrete implementation scoped to saved objects. The pattern extends to other OSD APIs.</li>
+<li><strong>Perses compatibility:</strong> If needed later, a mapping layer can translate between OSD saved objects and Perses format. See the RFC below.</li>
+</ul>
+
+<hr>
+
+<h2>Perses Schema Compatibility Layer <span class="badge badge-future">Future / On-demand</span></h2>
+
+<h3>Context</h3>
+
+<p><a href="https://perses.dev">Perses</a> is a CNCF sandbox project defining a vendor-neutral, Kubernetes-style resource model for observability dashboards. It's adopted by Red Hat, SAP, and Amadeus, and has a Grafana migration tool.</p>
+
+<p><strong>Our position:</strong> OpenSearch Dashboards saved objects are a 10+ year proven schema inherited from Kibana. We do not replace them. Instead, we offer an optional <strong>bidirectional translation layer</strong> that maps between OSD saved objects and Perses format &mdash; driven by customer requests, not speculative adoption.</p>
+
+<h3>Translation Model</h3>
+
+<pre><code>
+ Perses Format                    OSD Saved Objects
+
+ kind: Dashboard     --------&gt;   type: dashboard
+ metadata:           import      id: uuid
+   name: ...                     attributes:
+ spec:                             title: ...
+   panels: {}        &lt;--------     panelsJSON: ...
+   layouts: []       export      references: []
+   variables: []
+</code></pre>
+
+<h3>Key Mapping</h3>
+
+<table>
+<tr><th>Perses Concept</th><th>OSD Saved Object</th><th>Notes</th></tr>
+<tr><td><code>kind: Dashboard</code></td><td><code>type: "dashboard"</code></td><td>1:1 mapping</td></tr>
+<tr><td><code>metadata.name</code></td><td><code>attributes.title</code></td><td>Perses uses name as ID; OSD uses UUID + title</td></tr>
+<tr><td><code>metadata.project</code></td><td>Workspace</td><td>Maps to OSD workspace scoping</td></tr>
+<tr><td><code>spec.panels</code> (inline map)</td><td>Separate <code>type: "visualization"</code> objects</td><td>Key structural difference &mdash; Perses inlines, OSD links via references</td></tr>
+<tr><td><code>spec.layouts[].items</code></td><td><code>attributes.panelsJSON</code></td><td>Both use x/y/w/h grid; format differs</td></tr>
+<tr><td><code>spec.variables</code></td><td>Input controls / optionsJSON</td><td>Variable types need per-kind mapping</td></tr>
+<tr><td><code>spec.datasources</code></td><td><code>type: "data-source"</code></td><td>Perses scopes at dashboard; OSD scopes globally</td></tr>
+<tr><td>Panel <code>plugin.kind</code></td><td><code>visState.type</code></td><td>Visualization type mapping table needed</td></tr>
+</table>
+
+<h3>Visualization Type Mapping</h3>
+
+<table>
+<tr><th>OSD visState.type</th><th>Perses plugin.kind</th><th>Fidelity</th></tr>
+<tr><td><code>line</code></td><td><code>TimeSeriesChart</code></td><td>High</td></tr>
+<tr><td><code>area</code></td><td><code>TimeSeriesChart</code> (stacked)</td><td>High</td></tr>
+<tr><td><code>bar</code></td><td><code>BarChart</code></td><td>High</td></tr>
+<tr><td><code>pie</code></td><td><code>PieChart</code></td><td>High</td></tr>
+<tr><td><code>metric</code></td><td><code>StatChart</code></td><td>High</td></tr>
+<tr><td><code>table</code></td><td><code>Table</code></td><td>Medium</td></tr>
+<tr><td><code>gauge</code></td><td><code>GaugeChart</code></td><td>High</td></tr>
+<tr><td><code>markdown</code></td><td><code>Markdown</code></td><td>High</td></tr>
+<tr><td><code>vega</code> / <code>vega-lite</code></td><td>&mdash;</td><td>No equivalent &mdash; export as raw JSON</td></tr>
+<tr><td><code>maps</code></td><td>&mdash;</td><td>No equivalent &mdash; skip with warning</td></tr>
+</table>
+
+<h3>Grafana Migration Path</h3>
+
+<p>Perses maintains a <a href="https://perses.dev/perses/docs/migration/">Grafana migration tool</a>. Combined with this layer:</p>
+
+<pre><code>
+Grafana Dashboard --&gt; (Perses migrator) --&gt; Perses Format --&gt; (this layer) --&gt; OSD Saved Objects
+</code></pre>
+
+<p>Two-hop migration from Grafana without maintaining a direct Grafana importer.</p>
+
+<h3>CLI Integration (Planned)</h3>
+
+<pre><code class="language-bash">
+# Import Perses dashboard into OSD project
+osdctl import --from perses --file grafana-migrated.yaml --output ./dashboards/
+
+# Export OSD dashboard to Perses format
+osdctl export --to perses --type dashboard --id abc-123 --output ./perses/
+
+# Bulk convert a directory
+osdctl convert --from perses --to osd --dir ./perses-dashboards/ --output ./osd-dashboards/
+</code></pre>
+
+<h3>When to Build This</h3>
+
+<p>This RFC is <strong>parked until customer demand materializes.</strong> Triggers:</p>
+
+<ol>
+<li>Multiple customer requests for Grafana &rarr; OSD migration</li>
+<li>Perses reaches CNCF incubation (signals real standardization momentum)</li>
+<li>A concrete deployment where Perses + OSD coexist and need interop</li>
+</ol>
+
+<p>Until then, the saved object schema + OpenAPI client generation is the priority.</p>
+
+<hr>
+
+<h2>Generated API Types Reference</h2>
+
+<p>The following TypeScript types are auto-generated from the OpenAPI spec and exported from <code>@osd/dashboards-sdk</code>:</p>
+
+<h3>Bulk Apply</h3>
+
+<pre><code class="language-typescript">
+import type {
+  BulkApplyRequest,
+  BulkApplyResponse,
+  ApplyResult,
+  BulkApplyResource,
+  BulkApplyOptions,
+} from '@osd/dashboards-sdk';
+
+// BulkApplyResource
+interface BulkApplyResource {
+  type: string;           // e.g. 'dashboard', 'visualization'
+  id: string;
+  attributes: Record&lt;string, unknown&gt;;
+  labels?: Record&lt;string, string&gt;;
+  references?: SavedObjectReference[];
+}
+
+// ApplyResult
+interface ApplyResult {
+  type: string;
+  id: string;
+  status: 'created' | 'updated' | 'unchanged' | 'error';
+  error?: string;
+}
+</code></pre>
+
+<h3>Diff</h3>
+
+<pre><code class="language-typescript">
+import type { DiffRequest, DiffResponse, DiffEntry } from '@osd/dashboards-sdk';
+
+interface DiffResponse {
+  status: 'new' | 'unchanged' | 'updated';
+  diff?: DiffEntry[];     // present when status is 'updated'
+}
+
+interface DiffEntry {
+  op: 'add' | 'remove' | 'replace';
+  path: string;           // dot-delimited, e.g. 'visState.params.isDonut'
+  oldValue?: unknown;
+  newValue?: unknown;
+}
+</code></pre>
+
+<h3>Validate</h3>
+
+<pre><code class="language-typescript">
+import type { ValidateRequest, ValidateResponse } from '@osd/dashboards-sdk';
+
+interface ValidateResponse {
+  valid: boolean;
+  errors?: Array&lt;{ path: string; message: string; schemaPath: string }&gt;;
+  warnings?: string[];
+}
+</code></pre>
+
+<h3>Export Clean</h3>
+
+<pre><code class="language-typescript">
+import type { ExportCleanRequest, CleanSavedObject } from '@osd/dashboards-sdk';
+
+interface CleanSavedObject {
+  type: string;
+  id: string;
+  attributes: Record&lt;string, unknown&gt;;
+  references?: SavedObjectReference[];
+  migrationVersion?: Record&lt;string, unknown&gt;;
+}
+</code></pre>
+
+<h3>Schemas</h3>
+
+<pre><code class="language-typescript">
+import type { SchemaListResponse, SchemaEntry } from '@osd/dashboards-sdk';
+
+interface SchemaEntry {
+  type: string;           // e.g. 'dashboard'
+  version: string;        // e.g. 'v1'
+  url: string;            // e.g. '/api/saved_objects/_schemas/dashboard/v1'
+}
+</code></pre>
+
+<h3>Unlock</h3>
+
+<pre><code class="language-typescript">
+import type { UnlockResponse } from '@osd/dashboards-sdk';
+
+interface UnlockResponse {
+  type: string;
+  id: string;
+  unlocked: boolean;
+  message: string;
+}
+</code></pre>
+
+</body>
+</html>
