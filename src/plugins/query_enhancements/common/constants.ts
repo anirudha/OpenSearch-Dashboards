@@ -81,6 +81,7 @@ export const RESOURCE_TYPES = {
     METRICS: 'metrics',
     METRIC_METADATA: 'metric_metadata',
     SERIES: 'series',
+    QUERY_RANGE: 'query_range',
     ALERTS: 'alerts',
     ALERTS_GROUPS: 'alert_manager_alert_groups',
     RULES: 'rules',

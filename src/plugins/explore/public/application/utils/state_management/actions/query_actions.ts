@@ -390,8 +390,13 @@ export const executeQueries = createAsyncThunk<
   const visualizationTabCacheKey = visualizationTabPrepareQuery(query);
 
   let activeTabCacheKey = defaultCacheKey;
+  let activeTabIsQueryDriven = true;
   if (activeTabId && activeTabId !== '') {
     const activeTab = services.tabRegistry.getTab(activeTabId);
+    // Skip query execution for tabs that manage their own data (e.g., Metrics Explorer)
+    if (activeTab?.isQueryDriven === false) {
+      activeTabIsQueryDriven = false;
+    }
     let activeTabPrepareQuery = defaultPrepareQueryString;
     if (activeTab?.prepareQuery) {
       const prepareQuery = activeTab.prepareQuery;
@@ -406,6 +411,7 @@ export const executeQueries = createAsyncThunk<
   const needsVisualizationTabQuery =
     visualizationTabCacheKey !== defaultCacheKey && !results[visualizationTabCacheKey];
   const needsActiveTabQuery =
+    activeTabIsQueryDriven &&
     activeTabCacheKey !== visualizationTabCacheKey &&
     activeTabCacheKey !== defaultCacheKey &&
     !results[activeTabCacheKey];

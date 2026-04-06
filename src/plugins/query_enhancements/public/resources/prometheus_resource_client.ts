@@ -118,4 +118,57 @@ export class PrometheusResourceClient extends BaseResourceClient {
       this.toContent(meta, timeRange)
     );
   }
+
+  /**
+   * Execute a PromQL range query via the search endpoint.
+   * Returns the raw Prometheus result array (matrix / vector).
+   */
+  async queryRange(
+    dataConnectionId: string,
+    query: string,
+    timeRange: TimeRange,
+    step?: string,
+    meta?: Record<string, unknown>
+  ): Promise<PrometheusQueryResult> {
+    const parsedFrom = dateMath.parse(timeRange.from);
+    const parsedTo = dateMath.parse(timeRange.to, { roundUp: true });
+
+    if (!parsedFrom || !parsedTo) {
+      throw new Error('Invalid time range');
+    }
+
+    return this.get<PrometheusQueryResult>(
+      dataConnectionId,
+      RESOURCE_TYPES.PROMETHEUS.QUERY_RANGE,
+      undefined,
+      {
+        ...meta,
+        query,
+        start: parsedFrom.unix(),
+        end: parsedTo.unix(),
+        ...(step && { step }),
+      }
+    );
+  }
+}
+
+/**
+ * A single sample point: [unixTimestamp, "stringValue"]
+ */
+export type PrometheusSample = [number, string];
+
+/**
+ * Prometheus range-query result entry (matrix resultType)
+ */
+export interface PrometheusMatrixResult {
+  metric: Record<string, string>;
+  values: PrometheusSample[];
+}
+
+/**
+ * Wrapper returned by queryRange — mirrors Prometheus /api/v1/query_range response.data
+ */
+export interface PrometheusQueryResult {
+  resultType: 'matrix' | 'vector' | 'scalar' | 'string';
+  result: PrometheusMatrixResult[];
 }

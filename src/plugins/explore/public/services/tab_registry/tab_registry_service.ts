@@ -44,6 +44,13 @@ export interface TabDefinition {
    */
   handleQueryError?: (error: any, cacheKey: string) => boolean;
 
+  /**
+   * When false, the tab manages its own data fetching and does not
+   * participate in the shared query execution pipeline. The framework
+   * will skip query execution on tab switch. Default: true.
+   */
+  isQueryDriven?: boolean;
+
   // UI Components
   component: (() => React.JSX.Element | null) | MemoExoticComponent<() => React.JSX.Element>;
 }

@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import React from 'react';
 import { i18n } from '@osd/i18n';
 import { LogsTab } from '../components/tabs/logs_tab';
 import { MetricsTab } from '../components/tabs/metrics_tab';
@@ -17,6 +18,7 @@ import {
   EXPLORE_VISUALIZATION_TAB_ID,
   EXPLORE_PATTERNS_TAB_ID,
   EXPLORE_FIELD_STATS_TAB_ID,
+  EXPLORE_METRICS_EXPLORER_TAB_ID,
   ENABLE_EXPERIMENTAL_SETTING,
 } from '../../common';
 import { VisTab } from '../components/tabs/vis_tab';
@@ -44,6 +46,30 @@ export const registerBuiltInTabs = (
   const isExperimentalEnabled = services.uiSettings.get(ENABLE_EXPERIMENTAL_SETTING, false);
 
   if (registryFlavor === ExploreFlavor.Metrics) {
+    // Code-split the Metrics Explorer tab — only loaded when the tab is activated
+    const LazyMetricsExplorerTab = React.lazy(() =>
+      import('../components/tabs/metrics_explorer_tab').then((m) => ({
+        default: m.MetricsExplorerTab,
+      }))
+    );
+
+    tabRegistry.registerTab({
+      id: EXPLORE_METRICS_EXPLORER_TAB_ID,
+      label: i18n.translate('explore.metricsTab.explorerLabel', {
+        defaultMessage: 'Explore',
+      }),
+      flavor: [ExploreFlavor.Metrics],
+      order: 5,
+      supportedLanguages: ['PROMQL'],
+      isQueryDriven: false,
+      component: () =>
+        React.createElement(
+          React.Suspense,
+          { fallback: null },
+          React.createElement(LazyMetricsExplorerTab)
+        ),
+    });
+
     tabRegistry.registerTab({
       id: 'metrics',
       label: i18n.translate('explore.metricsTab.tableLabel', {
